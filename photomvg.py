@@ -44,7 +44,7 @@ class MainWnd():
         (FTYPE_VIDEO, 'video-x-generic'),
         (FTYPE_OTHER, 'gtk-file')) # 'dialog-question'
 
-    PAGE_SRCDIRS, PAGE_SCANSRCDIRS, PAGE_DESTFNAMES, PAGE_FINAL = range(4)
+    PAGE_SRCDIRS, PAGE_PROGRESS, PAGE_DESTFNAMES, PAGE_FINAL = range(4)
 
     class FileInfo():
         """Вспомогательный костыль, экземпляр которого кладётся
