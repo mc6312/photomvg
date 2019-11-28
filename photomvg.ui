@@ -2,6 +2,12 @@
 <!-- Generated with glade 3.22.1 -->
 <interface>
   <requires lib="gtk+" version="3.20"/>
+  <object class="GtkCheckButton" id="chkSDirSel">
+    <property name="visible">True</property>
+    <property name="can_focus">True</property>
+    <property name="receives_default">False</property>
+    <property name="draw_indicator">True</property>
+  </object>
   <object class="GtkTreeStore" id="filetreestore">
     <columns>
       <!-- column-name info -->
@@ -11,6 +17,16 @@
       <!-- column-name fname -->
       <column type="gchararray"/>
       <!-- column-name tooltip -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkListStore" id="srcdirliststore">
+    <columns>
+      <!-- column-name selected -->
+      <column type="gboolean"/>
+      <!-- column-name icon -->
+      <column type="GdkPixbuf"/>
+      <!-- column-name directory -->
       <column type="gchararray"/>
     </columns>
   </object>
@@ -48,6 +64,7 @@
                         <property name="can_focus">False</property>
                         <property name="label" translatable="yes">О программе...</property>
                         <property name="use_underline">True</property>
+                        <signal name="activate" handler="show_about_box" swapped="no"/>
                       </object>
                     </child>
                     <child>
@@ -101,19 +118,132 @@
                 <property name="orientation">vertical</property>
                 <property name="spacing">4</property>
                 <child>
-                  <object class="GtkLabel">
+                  <object class="GtkFrame" id="framesrcsirs">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="label" translatable="yes">source dirs</property>
+                    <property name="label_xalign">0</property>
+                    <property name="shadow_type">in</property>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="border_width">4</property>
+                        <property name="spacing">4</property>
+                        <child>
+                          <object class="GtkToolbar">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                            <property name="orientation">vertical</property>
+                            <property name="toolbar_style">icons</property>
+                            <property name="show_arrow">False</property>
+                            <property name="icon_size">2</property>
+                            <child>
+                              <object class="GtkToolButton" id="btnSDirAdd">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                                <property name="tooltip_text" translatable="yes">Добавить каталог в список</property>
+                                <property name="label" translatable="yes">Добавить</property>
+                                <property name="use_underline">True</property>
+                                <property name="stock_id">gtk-add</property>
+                                <signal name="clicked" handler="srcdirlist_add" swapped="no"/>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="homogeneous">True</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkToolButton" id="btnSDirRemove">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                                <property name="tooltip_text" translatable="yes">Убрать каталог из списка</property>
+                                <property name="label" translatable="yes">Убрать</property>
+                                <property name="use_underline">True</property>
+                                <property name="stock_id">gtk-remove</property>
+                                <signal name="clicked" handler="srcdirlist_remove" swapped="no"/>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="homogeneous">True</property>
+                              </packing>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkScrolledWindow">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="shadow_type">in</property>
+                            <property name="min_content_width">512</property>
+                            <property name="min_content_height">384</property>
+                            <child>
+                              <object class="GtkTreeView" id="srcdirlistview">
+                                <property name="visible">True</property>
+                                <property name="can_focus">True</property>
+                                <property name="model">srcdirliststore</property>
+                                <child internal-child="selection">
+                                  <object class="GtkTreeSelection" id="srcdirlistsel"/>
+                                </child>
+                                <child>
+                                  <object class="GtkTreeViewColumn" id="colSDirSel">
+                                    <property name="widget">chkSDirSel</property>
+                                    <child>
+                                      <object class="GtkCellRendererToggle" id="crSDirSel"/>
+                                      <attributes>
+                                        <attribute name="active">0</attribute>
+                                      </attributes>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkTreeViewColumn" id="colSDir">
+                                    <property name="title" translatable="yes">Каталог</property>
+                                    <child>
+                                      <object class="GtkCellRendererPixbuf" id="crSDirIcon"/>
+                                      <attributes>
+                                        <attribute name="pixbuf">1</attribute>
+                                      </attributes>
+                                    </child>
+                                    <child>
+                                      <object class="GtkCellRendererText" id="crSDirPath">
+                                        <property name="ellipsize">middle</property>
+                                      </object>
+                                      <attributes>
+                                        <attribute name="text">2</attribute>
+                                      </attributes>
+                                    </child>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">True</property>
+                            <property name="fill">True</property>
+                            <property name="position">1</property>
+                          </packing>
+                        </child>
+                      </object>
+                    </child>
+                    <child type="label">
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Искать снимки и видео в каталогах:</property>
+                        <property name="xalign">0</property>
+                      </object>
+                    </child>
                   </object>
                   <packing>
                     <property name="expand">False</property>
                     <property name="fill">True</property>
-                    <property name="position">0</property>
+                    <property name="position">1</property>
                   </packing>
-                </child>
-                <child>
-                  <placeholder/>
                 </child>
                 <child>
                   <object class="GtkBox">
@@ -122,7 +252,7 @@
                     <property name="spacing">4</property>
                     <child>
                       <object class="GtkButton" id="btnScanSrcDirs">
-                        <property name="label" translatable="yes">Продолжить</property>
+                        <property name="label" translatable="yes">Начать поиск</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
@@ -160,31 +290,58 @@
               </packing>
             </child>
             <child>
-              <object class="GtkBox" id="vboxscansrcdirs">
+              <object class="GtkBox" id="vboxprogress">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="orientation">vertical</property>
                 <property name="spacing">4</property>
                 <child>
-                  <object class="GtkBox">
+                  <object class="GtkFrame" id="frameprogress">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="orientation">vertical</property>
+                    <property name="label_xalign">0</property>
+                    <property name="shadow_type">in</property>
                     <child>
-                      <object class="GtkAlignment">
+                      <object class="GtkBox">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
+                        <property name="border_width">4</property>
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">4</property>
                         <child>
                           <object class="GtkBox">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
                             <property name="orientation">vertical</property>
-                            <property name="spacing">4</property>
                             <child>
-                              <object class="GtkLabel" id="txtProgressOperation">
+                              <object class="GtkAlignment">
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
-                                <property name="label" translatable="yes">Поиск файлов...</property>
+                                <child>
+                                  <object class="GtkBox">
+                                    <property name="visible">True</property>
+                                    <property name="can_focus">False</property>
+                                    <property name="orientation">vertical</property>
+                                    <property name="spacing">4</property>
+                                    <child>
+                                      <placeholder/>
+                                    </child>
+                                    <child>
+                                      <object class="GtkProgressBar" id="pbarScanSrcDirs">
+                                        <property name="visible">True</property>
+                                        <property name="can_focus">False</property>
+                                        <property name="text" translatable="yes">...</property>
+                                        <property name="show_text">True</property>
+                                        <property name="ellipsize">middle</property>
+                                      </object>
+                                      <packing>
+                                        <property name="expand">False</property>
+                                        <property name="fill">True</property>
+                                        <property name="position">2</property>
+                                      </packing>
+                                    </child>
+                                  </object>
+                                </child>
                               </object>
                               <packing>
                                 <property name="expand">False</property>
@@ -192,33 +349,27 @@
                                 <property name="position">0</property>
                               </packing>
                             </child>
-                            <child>
-                              <object class="GtkProgressBar" id="pbarScanSrcDirs">
-                                <property name="visible">True</property>
-                                <property name="can_focus">False</property>
-                                <property name="text" translatable="yes">...</property>
-                                <property name="show_text">True</property>
-                                <property name="ellipsize">middle</property>
-                              </object>
-                              <packing>
-                                <property name="expand">False</property>
-                                <property name="fill">True</property>
-                                <property name="position">2</property>
-                              </packing>
-                            </child>
                           </object>
+                          <packing>
+                            <property name="expand">True</property>
+                            <property name="fill">False</property>
+                            <property name="position">1</property>
+                          </packing>
                         </child>
                       </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">True</property>
-                        <property name="position">0</property>
-                      </packing>
+                    </child>
+                    <child type="label">
+                      <object class="GtkLabel" id="txtProgressOperation">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Название операции</property>
+                        <property name="xalign">0</property>
+                      </object>
                     </child>
                   </object>
                   <packing>
                     <property name="expand">True</property>
-                    <property name="fill">False</property>
+                    <property name="fill">True</property>
                     <property name="position">0</property>
                   </packing>
                 </child>
@@ -229,29 +380,23 @@
                     <property name="spacing">4</property>
                     <child>
                       <object class="GtkButton" id="btnCancelScanSrcDirs">
-                        <property name="label" translatable="yes">Прервать</property>
+                        <property name="label" translatable="yes">Прервать поиск</property>
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
                       </object>
                       <packing>
                         <property name="expand">False</property>
-                        <property name="fill">True</property>
+                        <property name="fill">False</property>
                         <property name="position">0</property>
                       </packing>
-                    </child>
-                    <child>
-                      <placeholder/>
-                    </child>
-                    <child>
-                      <placeholder/>
                     </child>
                   </object>
                   <packing>
                     <property name="expand">False</property>
                     <property name="fill">True</property>
                     <property name="pack_type">end</property>
-                    <property name="position">2</property>
+                    <property name="position">1</property>
                   </packing>
                 </child>
               </object>
@@ -263,7 +408,7 @@
               <object class="GtkLabel" id="pageProgress">
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
-                <property name="label" translatable="yes">Просмотр источников или выполнение</property>
+                <property name="label" translatable="yes">Выполнение</property>
               </object>
               <packing>
                 <property name="position">1</property>
@@ -277,133 +422,154 @@
                 <property name="orientation">vertical</property>
                 <property name="spacing">4</property>
                 <child>
-                  <object class="GtkBox" id="hboxdestfnames">
+                  <object class="GtkFrame" id="framedestnames">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="spacing">4</property>
+                    <property name="label_xalign">0</property>
+                    <property name="shadow_type">in</property>
                     <child>
-                      <object class="GtkToolbar">
+                      <object class="GtkBox" id="hboxdestfnames">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="orientation">vertical</property>
-                        <property name="toolbar_style">icons</property>
-                        <property name="show_arrow">False</property>
-                        <property name="icon_size">2</property>
+                        <property name="border_width">4</property>
+                        <property name="spacing">4</property>
                         <child>
-                          <object class="GtkToolButton" id="btnFTNewDir">
+                          <object class="GtkToolbar">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
-                            <property name="label" translatable="yes">Новый каталог</property>
-                            <property name="use_underline">True</property>
-                            <property name="icon_name">folder-new</property>
-                            <signal name="clicked" handler="filetree_new_dir" swapped="no"/>
-                            <accelerator key="n" signal="clicked" modifiers="GDK_SHIFT_MASK | GDK_CONTROL_MASK"/>
-                          </object>
-                          <packing>
-                            <property name="expand">False</property>
-                            <property name="homogeneous">True</property>
-                          </packing>
-                        </child>
-                        <child>
-                          <object class="GtkToolButton" id="btnFTSrcName">
-                            <property name="visible">True</property>
-                            <property name="can_focus">False</property>
-                            <property name="label" translatable="yes">Вернуть исходное имя</property>
-                            <property name="use_underline">True</property>
-                            <property name="icon_name">revert</property>
-                            <signal name="clicked" handler="filetree_revert_srcname" swapped="no"/>
-                            <accelerator key="r" signal="clicked" modifiers="GDK_CONTROL_MASK"/>
-                          </object>
-                          <packing>
-                            <property name="expand">False</property>
-                            <property name="homogeneous">True</property>
-                          </packing>
-                        </child>
-                        <child>
-                          <object class="GtkToolButton" id="btnFTRemoveItem">
-                            <property name="visible">True</property>
-                            <property name="can_focus">False</property>
-                            <property name="label" translatable="yes">Удалить</property>
-                            <property name="use_underline">True</property>
-                            <property name="stock_id">gtk-delete</property>
-                            <signal name="clicked" handler="filetree_remove_item" swapped="no"/>
-                            <accelerator key="Delete" signal="clicked" modifiers="GDK_CONTROL_MASK"/>
-                          </object>
-                          <packing>
-                            <property name="expand">False</property>
-                            <property name="homogeneous">True</property>
-                          </packing>
-                        </child>
-                      </object>
-                      <packing>
-                        <property name="expand">False</property>
-                        <property name="fill">True</property>
-                        <property name="position">0</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkScrolledWindow">
-                        <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="shadow_type">in</property>
-                        <property name="min_content_width">512</property>
-                        <property name="min_content_height">384</property>
-                        <child>
-                          <object class="GtkTreeView" id="filetreeview">
-                            <property name="visible">True</property>
-                            <property name="can_focus">True</property>
-                            <property name="model">filetreestore</property>
-                            <property name="headers_visible">False</property>
-                            <property name="expander_column">colFName</property>
-                            <property name="reorderable">True</property>
-                            <property name="enable_tree_lines">True</property>
-                            <property name="tooltip_column">3</property>
-                            <signal name="drag-begin" handler="filetree_drag_begin" swapped="no"/>
-                            <signal name="drag-drop" handler="filetree_drag_drop" swapped="no"/>
-                            <signal name="drag-end" handler="filetree_drag_end" swapped="no"/>
-                            <child internal-child="selection">
-                              <object class="GtkTreeSelection" id="filetreesel">
-                                <property name="mode">multiple</property>
+                            <property name="orientation">vertical</property>
+                            <property name="toolbar_style">icons</property>
+                            <property name="show_arrow">False</property>
+                            <property name="icon_size">2</property>
+                            <child>
+                              <object class="GtkToolButton" id="btnFTNewDir">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                                <property name="tooltip_text" translatable="yes">Создать каталог</property>
+                                <property name="label" translatable="yes">Новый каталог</property>
+                                <property name="use_underline">True</property>
+                                <property name="icon_name">folder-new</property>
+                                <signal name="clicked" handler="filetree_new_dir" swapped="no"/>
+                                <accelerator key="n" signal="clicked" modifiers="GDK_SHIFT_MASK | GDK_CONTROL_MASK"/>
                               </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="homogeneous">True</property>
+                              </packing>
                             </child>
                             <child>
-                              <object class="GtkTreeViewColumn" id="colFName">
-                                <property name="title" translatable="yes">Имя</property>
-                                <child>
-                                  <object class="GtkCellRendererPixbuf" id="crFIcon"/>
-                                  <attributes>
-                                    <attribute name="pixbuf">1</attribute>
-                                  </attributes>
+                              <object class="GtkToolButton" id="btnFTSrcName">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                                <property name="tooltip_text" translatable="yes">Вернуть файлу оригинальное имя</property>
+                                <property name="label" translatable="yes">Вернуть исходное имя</property>
+                                <property name="use_underline">True</property>
+                                <property name="icon_name">revert</property>
+                                <signal name="clicked" handler="filetree_revert_srcname" swapped="no"/>
+                                <accelerator key="r" signal="clicked" modifiers="GDK_CONTROL_MASK"/>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="homogeneous">True</property>
+                              </packing>
+                            </child>
+                            <child>
+                              <object class="GtkToolButton" id="btnFTRemoveItem">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                                <property name="tooltip_text" translatable="yes">Удалить</property>
+                                <property name="label" translatable="yes">Удалить</property>
+                                <property name="use_underline">True</property>
+                                <property name="stock_id">gtk-delete</property>
+                                <signal name="clicked" handler="filetree_remove_item" swapped="no"/>
+                                <accelerator key="Delete" signal="clicked" modifiers="GDK_CONTROL_MASK"/>
+                              </object>
+                              <packing>
+                                <property name="expand">False</property>
+                                <property name="homogeneous">True</property>
+                              </packing>
+                            </child>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <object class="GtkScrolledWindow">
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="shadow_type">in</property>
+                            <property name="min_content_width">512</property>
+                            <property name="min_content_height">384</property>
+                            <child>
+                              <object class="GtkTreeView" id="filetreeview">
+                                <property name="visible">True</property>
+                                <property name="can_focus">True</property>
+                                <property name="model">filetreestore</property>
+                                <property name="headers_visible">False</property>
+                                <property name="expander_column">colFName</property>
+                                <property name="reorderable">True</property>
+                                <property name="enable_tree_lines">True</property>
+                                <property name="tooltip_column">3</property>
+                                <signal name="drag-begin" handler="filetree_drag_begin" swapped="no"/>
+                                <signal name="drag-data-received" handler="filetree_drag_data_received" swapped="no"/>
+                                <signal name="drag-drop" handler="filetree_drag_drop" swapped="no"/>
+                                <signal name="drag-end" handler="filetree_drag_end" swapped="no"/>
+                                <child internal-child="selection">
+                                  <object class="GtkTreeSelection" id="filetreesel">
+                                    <property name="mode">multiple</property>
+                                  </object>
                                 </child>
                                 <child>
-                                  <object class="GtkCellRendererText" id="crFName">
-                                    <property name="editable">True</property>
-                                    <signal name="edited" handler="filetree_name_edited" swapped="no"/>
+                                  <object class="GtkTreeViewColumn" id="colFName">
+                                    <property name="title" translatable="yes">Имя</property>
+                                    <child>
+                                      <object class="GtkCellRendererPixbuf" id="crFIcon"/>
+                                      <attributes>
+                                        <attribute name="pixbuf">1</attribute>
+                                      </attributes>
+                                    </child>
+                                    <child>
+                                      <object class="GtkCellRendererText" id="crFName">
+                                        <property name="editable">True</property>
+                                        <signal name="edited" handler="filetree_name_edited" swapped="no"/>
+                                      </object>
+                                      <attributes>
+                                        <attribute name="text">2</attribute>
+                                      </attributes>
+                                    </child>
                                   </object>
-                                  <attributes>
-                                    <attribute name="text">2</attribute>
-                                  </attributes>
                                 </child>
                               </object>
                             </child>
                           </object>
+                          <packing>
+                            <property name="expand">True</property>
+                            <property name="fill">True</property>
+                            <property name="position">1</property>
+                          </packing>
                         </child>
                       </object>
-                      <packing>
-                        <property name="expand">True</property>
-                        <property name="fill">True</property>
-                        <property name="position">1</property>
-                      </packing>
+                    </child>
+                    <child type="label">
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">Новые имена каталогов и файлов</property>
+                        <property name="xalign">0</property>
+                      </object>
                     </child>
                   </object>
                   <packing>
                     <property name="expand">False</property>
                     <property name="fill">True</property>
-                    <property name="position">0</property>
+                    <property name="position">1</property>
                   </packing>
                 </child>
                 <child>
-                  <object class="GtkBox">
+                  <object class="GtkBox" id="hboxdestctl">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <property name="spacing">4</property>
@@ -414,7 +580,7 @@
                         <property name="spacing">4</property>
                         <child>
                           <object class="GtkButton" id="btnExecFileOps">
-                            <property name="label" translatable="yes">Выполнить</property>
+                            <property name="label" translatable="yes">Начать</property>
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="receives_default">True</property>
@@ -426,13 +592,14 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkRadioButton" id="rbtnFOpCopy">
-                            <property name="label" translatable="yes">копирование</property>
+                          <object class="GtkComboBoxText" id="cboxFOp">
                             <property name="visible">True</property>
-                            <property name="can_focus">True</property>
-                            <property name="receives_default">False</property>
-                            <property name="active">True</property>
-                            <property name="draw_indicator">True</property>
+                            <property name="can_focus">False</property>
+                            <property name="active">0</property>
+                            <items>
+                              <item translatable="yes">копирование</item>
+                              <item translatable="yes">перемещение</item>
+                            </items>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -441,14 +608,10 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkRadioButton" id="rbtnFOpMove">
-                            <property name="label" translatable="yes">перемещение</property>
+                          <object class="GtkLabel">
                             <property name="visible">True</property>
-                            <property name="can_focus">True</property>
-                            <property name="receives_default">False</property>
-                            <property name="active">True</property>
-                            <property name="draw_indicator">True</property>
-                            <property name="group">rbtnFOpCopy</property>
+                            <property name="can_focus">False</property>
+                            <property name="label" translatable="yes">в каталог</property>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -456,9 +619,22 @@
                             <property name="position">2</property>
                           </packing>
                         </child>
+                        <child>
+                          <object class="GtkFileChooserButton" id="fcbtnDestDir">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                            <property name="action">select-folder</property>
+                            <property name="title" translatable="yes">Выбор каталога назначения</property>
+                          </object>
+                          <packing>
+                            <property name="expand">True</property>
+                            <property name="fill">True</property>
+                            <property name="position">4</property>
+                          </packing>
+                        </child>
                       </object>
                       <packing>
-                        <property name="expand">False</property>
+                        <property name="expand">True</property>
                         <property name="fill">True</property>
                         <property name="position">0</property>
                       </packing>
@@ -492,7 +668,7 @@
                   <packing>
                     <property name="expand">False</property>
                     <property name="fill">True</property>
-                    <property name="position">1</property>
+                    <property name="position">2</property>
                   </packing>
                 </child>
               </object>
@@ -521,7 +697,8 @@
                   <object class="GtkLabel">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="label" translatable="yes">final page</property>
+                    <property name="label" translatable="yes">Работа завершена</property>
+                    <property name="xalign">0</property>
                   </object>
                   <packing>
                     <property name="expand">False</property>
@@ -530,7 +707,56 @@
                   </packing>
                 </child>
                 <child>
-                  <placeholder/>
+                  <object class="GtkLabel">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="label" translatable="yes">тут будет что-нибудь вроде статистики и списка ошибок</property>
+                  </object>
+                  <packing>
+                    <property name="expand">True</property>
+                    <property name="fill">True</property>
+                    <property name="position">1</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="spacing">4</property>
+                    <child>
+                      <object class="GtkButton" id="btnAgain">
+                        <property name="label" translatable="yes">Начать сначала</property>
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="receives_default">True</property>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                        <property name="position">0</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="btnFinish">
+                        <property name="label" translatable="yes">Выход</property>
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="receives_default">True</property>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                        <property name="pack_type">end</property>
+                        <property name="position">1</property>
+                      </packing>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="pack_type">end</property>
+                    <property name="position">2</property>
+                  </packing>
                 </child>
               </object>
               <packing>
@@ -557,5 +783,74 @@
         </child>
       </object>
     </child>
+  </object>
+  <object class="GtkFileChooserDialog" id="dlgSDirChoose">
+    <property name="can_focus">False</property>
+    <property name="title" translatable="yes">Выбор исходных каталогов</property>
+    <property name="modal">True</property>
+    <property name="window_position">mouse</property>
+    <property name="destroy_with_parent">True</property>
+    <property name="type_hint">dialog</property>
+    <property name="skip_taskbar_hint">True</property>
+    <property name="skip_pager_hint">True</property>
+    <property name="attached_to">wndMain</property>
+    <property name="action">select-folder</property>
+    <property name="select_multiple">True</property>
+    <child>
+      <placeholder/>
+    </child>
+    <child internal-child="vbox">
+      <object class="GtkBox">
+        <property name="can_focus">False</property>
+        <property name="orientation">vertical</property>
+        <property name="spacing">2</property>
+        <child internal-child="action_area">
+          <object class="GtkButtonBox">
+            <property name="can_focus">False</property>
+            <property name="layout_style">end</property>
+            <child>
+              <object class="GtkButton" id="btnSDirCancel">
+                <property name="label">gtk-cancel</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="use_stock">True</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="btnSDirOk">
+                <property name="label">gtk-ok</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="use_stock">True</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">False</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <placeholder/>
+        </child>
+      </object>
+    </child>
+    <action-widgets>
+      <action-widget response="-6">btnSDirCancel</action-widget>
+      <action-widget response="-5">btnSDirOk</action-widget>
+    </action-widgets>
   </object>
 </interface>

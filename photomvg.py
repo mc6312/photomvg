@@ -35,8 +35,16 @@ SRCDIR = '~/downloads/src'
 
 
 class MainWnd():
+    # номера страниц в pages
+    PAGE_SRCDIRS, PAGE_PROGRESS, PAGE_DESTFNAMES, PAGE_FINAL = range(4)
+
+    # столбцы в filetreestore
     FTCOL_INFO, FTCOL_ICON, FTCOL_FNAME, FTCOL_TOOLTIP = range(4)
 
+    # типы элементов дерева в filetreestore
+    # внимание, времянка!
+    # потом будет переделано или дополнено для поддержки файла настроек
+    # (которого ещё нет)
     FTYPE_DIR, FTYPE_IMAGE, FTYPE_VIDEO, FTYPE_OTHER = range(4)
     ICONNAMES = (
         (FTYPE_DIR, 'folder'),
@@ -44,7 +52,8 @@ class MainWnd():
         (FTYPE_VIDEO, 'video-x-generic'),
         (FTYPE_OTHER, 'gtk-file')) # 'dialog-question'
 
-    PAGE_SRCDIRS, PAGE_PROGRESS, PAGE_DESTFNAMES, PAGE_FINAL = range(4)
+    # столбцы в srcdirliststore
+    SDCOL_SEL, SDCOL_ICON, SDCOL_DIRNAME = range(3)
 
     class FileInfo():
         """Вспомогательный костыль, экземпляр которого кладётся
@@ -86,7 +95,7 @@ class MainWnd():
         #
         #
         #
-        self.window = uibldr.get_object('wndMain')
+        self.wndMain = uibldr.get_object('wndMain')
         self.headerBar = uibldr.get_object('headerBar')
 
         self.headerBar.set_title('PhotoMVG prototype')
@@ -117,24 +126,37 @@ class MainWnd():
             self.icons[ftype] = __icon_with_error_overlay(iconname)
 
         #
-        self.filetreeview, self.filetreestore, self.filetreesel = get_ui_widgets(uibldr,
-            ('filetreeview', 'filetreestore', 'filetreesel'))
-
-        #
         self.pages = uibldr.get_object('pages')
         #self.pages.set_show_tabs(False) # в .ui указано True для упрощения правки в Glade
 
-        #!!!debug!!!
-        self.txtTestPath = uibldr.get_object('txtTestPath')
+        #
+        # список каталогов-источников
+        #
+        self.srcdirlistview, self.srcdirliststore, self.srcdirlistsel = get_ui_widgets(uibldr,
+            ('srcdirlistview', 'srcdirliststore', 'srcdirlistsel'))
 
-        self.filetree_refresh()
+        self.curSrcDir = os.path.expanduser('~') # для dlgSDirChoose
+        self.dlgSDirChoose = uibldr.get_object('dlgSDirChoose')
 
         #
-        self.pages.set_current_page(self.PAGE_DESTFNAMES) #0
+        # дерево новых каталогов/файлов
+        #
+        self.filetreeview, self.filetreestore, self.filetreesel = get_ui_widgets(uibldr,
+            ('filetreeview', 'filetreestore', 'filetreesel'))
+
+        # костыль для обработки DnD, см. filetree_drag_data_received(), filetree_drag_end()
+        self.filetreedroprow = None
+
+
+        #!!!debug!!!
+        #self.filetree_refresh()
+
+        #
+        self.pages.set_current_page(0)
 
         uibldr.connect_signals(self)
 
-        self.window.show_all()
+        self.wndMain.show_all()
 
     def __scan_dir_to_filetree(self, fromdirname, toiter):
         if os.access(fromdirname, os.R_OK):
@@ -236,14 +258,34 @@ class MainWnd():
 
         return False
 
+    def filetree_drag_data_received(self, tv, ctx, x, y, data, info, time):
+        drop = self.filetreeview.get_dest_row_at_pos(x, y)
+
+        if drop is not None and drop[0]:
+            self.filetreedroprow = drop[0]
+        else:
+            self.filetreedroprow = None
+
     def filetree_drag_end(self, tv, ctx):
-        """После завершения drag-n-drop проверяем текущую ветвь на повторы
-        имён файлов и разрешаем взад сортировку treestore."""
+        """Завершение операции drag-n-drop.
 
-        sel = self.filetreesel.get_selected_rows()
-        if sel:
-            self.filetree_check_node(self.filetreestore.get_iter(sel[1][0]))
+        Перемещаем selection на дропнутую ветвь (если она известна)
+        и проверяем эту ветвь на повторы имён файлов."""
 
+        if self.filetreedroprow:
+            try:
+                itr = self.filetreestore.get_iter(self.filetreedroprow)
+            except ValueError:
+                # в некоторых случаях перемещения ветвь self.filetreedroprow
+                # уже не существует на момент вызова drag_end,
+                # и get_iter падает с исключением, собака такая,
+                # хотя мог бы и просто None возвращать...
+                return
+
+            self.filetree_select_iter(itr)
+            self.filetree_check_node(itr)
+
+        # разрешаем взад сортировку treestore
         self.filetree_enable_sorting(True)
 
     def filetree_enable_sorting(self, enable):
@@ -349,18 +391,59 @@ class MainWnd():
                     # на уже удалённый элемент!
                     pass
 
-    def on_btnTestPath_clicked(self, btn):
-        #debug
+    def srcdirlist_add(self, btn):
+        self.dlgSDirChoose.set_current_folder(self.curSrcDir)
 
-        paths = []
+        self.dlgSDirChoose.show()
+        r = self.dlgSDirChoose.run()
+        self.dlgSDirChoose.hide()
 
-        sel = self.filetreesel.get_selected_rows()
+        if r != Gtk.ResponseType.OK:
+            return
 
-        if sel is not None:
-            for row in sel[1]:
-                paths.append(self.filetree_get_full_path(self.filetreestore.get_iter(row)))
+        def __add_srcdir(newdirname):
+            """Проверяет, не совпадает ли каталог newdirname с одним из
+            хранящихся в srcdirliststore, и не является ли подкаталогом
+            одного из хранящихся.
 
-        self.txtTestPath.set_text(', '.join(paths))
+            При отсутствии совпадений добавляет новый каталог в srcdirliststore
+            и возвращает True, иначе - возвращает False."""
+
+            itr = self.srcdirliststore.get_iter_first()
+
+            while itr is not None:
+                dirname = self.srcdirliststore.get_value(itr, self.SDCOL_DIRNAME)
+
+                if same_dir(newdirname, dirname):
+                    return False
+
+                itr = self.srcdirliststore.iter_next(itr)
+
+            self.srcdirliststore.append((True, self.icons[self.FTYPE_DIR][False], newdirname))
+            return True
+
+        baddirs = []
+
+        for dirname in self.dlgSDirChoose.get_filenames():
+            # добавляем поочерёдно каталоги, проверяя каждый на повтор
+            # или вложенность с уже добавленными
+            # и ругаясь при необходимости
+
+            if not __add_srcdir(dirname):
+                baddirs.append(dirname)
+
+        if baddirs:
+            msg_dialog(self.wndMain,
+                self.dlgSDirChoose.get_title(),
+                'Каталог%s\n%s\nуже есть в списке.' %\
+                    ('и' if len(baddirs) > 1 else '',
+                     '\n'.join(baddirs)))
+
+    def srcdirlist_remove(self, btn):
+        pass
+
+    def show_about_box(self, wgt):
+        print('About Box not yet implemented!')
 
     def main(self):
         Gtk.main()
