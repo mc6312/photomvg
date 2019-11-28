@@ -21,6 +21,8 @@
 TITLE = 'PhotoMVG'
 VERSION = '0.02-prototype'
 TITLE_VERSION = '%s v%s' % (TITLE, VERSION)
+URL = 'http://github.com/mc6312/photomvg'
+COPYRIGHT = '(c) 2019 MC-6312'
 
 
 import os, os.path

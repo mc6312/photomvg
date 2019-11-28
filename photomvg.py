@@ -95,9 +95,15 @@ class MainWnd():
         #
         #
         #
-        self.wndMain = uibldr.get_object('wndMain')
-        self.headerBar = uibldr.get_object('headerBar')
+        sizeIconPx = Gtk.IconSize.lookup(Gtk.IconSize.DIALOG)[1]
+        appicon = resldr.load_pixbuf('images/photomvg.svg',
+            sizeIconPx, sizeIconPx)
 
+        self.wndMain = uibldr.get_object('wndMain')
+
+        self.wndMain.set_icon(appicon)
+
+        self.headerBar = uibldr.get_object('headerBar')
         self.headerBar.set_title('PhotoMVG prototype')
 
         #
@@ -145,6 +151,19 @@ class MainWnd():
         # костыль для обработки DnD, см. filetree_drag_data_received(), filetree_drag_end()
         self.filetreedroprow = None
 
+        #
+        # о программе...
+        #
+        self.dlgAbout = uibldr.get_object('dlgAbout')
+        self.dlgAbout.set_program_name(TITLE)
+        self.dlgAbout.set_version(VERSION)
+        self.dlgAbout.set_copyright(COPYRIGHT)
+        self.dlgAbout.set_website(URL)
+        self.dlgAbout.set_website_label(URL)
+        self.dlgAbout.set_logo(resldr.load_pixbuf('images/logo.svg',
+            # размер пока приколотим гвоздями
+            128, 128,
+            'image-x-generic'))
 
         #!!!debug!!!
         #self.filetree_refresh()
@@ -444,7 +463,9 @@ class MainWnd():
         print('srcdirlist check column clicked')
 
     def show_about_box(self, wgt):
-        print('About Box not yet implemented!')
+        self.dlgAbout.show()
+        self.dlgAbout.run()
+        self.dlgAbout.hide()
 
     def main(self):
         Gtk.main()
