@@ -19,7 +19,7 @@
 
 
 TITLE = 'PhotoMVG'
-VERSION = '0.01-prototype'
+VERSION = '0.02-prototype'
 TITLE_VERSION = '%s v%s' % (TITLE, VERSION)
 
 
