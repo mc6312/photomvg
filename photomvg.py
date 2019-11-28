@@ -139,6 +139,10 @@ class MainWnd():
         # список каталогов-источников
         #
         self.srcdirlist = TreeViewShell.new_from_uibuilder(uibldr, 'srcdirlistview')
+        self.srcdirlist.nSelected = 0
+        self.srcdirlist.nTotal = 0 # дабы не дёргать лишний раз liststore.iter_n_children()
+
+        self.chkSDirSel = uibldr.get_object('chkSDirSel')
 
         self.curSrcDir = os.path.expanduser('~') # для dlgSDirChoose
         self.dlgSDirChoose = uibldr.get_object('dlgSDirChoose')
@@ -169,6 +173,7 @@ class MainWnd():
         #self.filetree_refresh()
 
         #
+        self.srcdirlist_update_sel_all_cbox()
         self.pages.set_current_page(0)
 
         uibldr.connect_signals(self)
@@ -418,6 +423,9 @@ class MainWnd():
                 itr = self.srcdirlist.store.iter_next(itr)
 
             self.srcdirlist.store.append((True, newdirname))
+            self.srcdirlist.nTotal += 1
+            self.srcdirlist.nSelected += 1
+
             return True
 
         baddirs = []
@@ -430,6 +438,8 @@ class MainWnd():
             if not __add_srcdir(dirname):
                 baddirs.append(dirname)
 
+        self.srcdirlist_update_sel_all_cbox()
+
         if baddirs:
             msg_dialog(self.wndMain,
                 self.dlgSDirChoose.get_title(),
@@ -440,27 +450,66 @@ class MainWnd():
     def srcdirlist_remove(self, btn):
         itr = self.srcdirlist.get_selected_iter()
         if itr is not None:
-            if msg_dialog(self.wndMain, 'Удаление каталог из списка',
+            if msg_dialog(self.wndMain, 'Удаление каталога из списка',
                     'Убрать из списка каталог "%s"?' % self.srcdirlist.store.get_value(itr, self.SDCOL_DIRNAME),
                     Gtk.MessageType.QUESTION,
                     Gtk.ButtonsType.YES_NO) != Gtk.ResponseType.YES:
                 return
 
+            if self.srcdirlist.store.get_value(itr, self.SDCOL_SEL):
+                self.srcdirlist.nSelected -= 1
+
             self.srcdirlist.store.remove(itr)
+            self.srcdirlist.nTotal -= 1
+
+            self.srcdirlist_update_sel_all_cbox()
 
     def srcdirlist_item_sel_toggled(self, cr, path):
         # нажат чекбокс в списке каталогов-источников
 
-        itr = self.srcdirlist.get_selected_iter()
+        itr = self.srcdirlist.store.get_iter(path)
         if itr is not None:
-            self.srcdirlist.store.set_value(self.SDCOL_SEL,
-                not self.srcdirlist.store.get_value(self.SDCOL_SEL))
+            sel = not self.srcdirlist.store.get_value(itr, self.SDCOL_SEL)
+            self.srcdirlist.store.set_value(itr, self.SDCOL_SEL, sel)
+
+            self.srcdirlist.nSelected += -1 if not sel else 1
+
+            self.srcdirlist_update_sel_all_cbox()
+
+    def srcdirlist_update_sel_all_cbox(self):
+        """Обновление состояния чекбокса на заголовке столбца."""
+
+        if self.srcdirlist.nTotal == 0 or self.srcdirlist.nSelected == 0:
+            sa = False
+            si = False
+        elif self.srcdirlist.nTotal == self.srcdirlist.nSelected:
+            sa = True
+            si = False
+        else:
+            sa = True
+            si = True
+
+        self.chkSDirSel.set_active(sa)
+        self.chkSDirSel.set_inconsistent(si)
+
+    def __srcdirlist_select_all(self, sel):
+        itr = self.srcdirlist.store.get_iter_first()
+
+        while itr is not None:
+            self.srcdirlist.store.set_value(itr, self.SDCOL_SEL, sel)
+            itr = self.srcdirlist.store.iter_next(itr)
+
+        self.srcdirlist.nSelected = self.srcdirlist.nTotal if sel else 0
+
+        self.srcdirlist_update_sel_all_cbox()
 
     def srcdirlist_sel_col_clicked(self, cbtn):
-        # нажат чекбокс на заголовке столбца каталогов-источников
-        #self.__item_select_all(not (self.cbSelectAll.get_active() or self.cbSelectAll.get_inconsistent()))
+        """нажат чекбокс на заголовке столбца каталогов-источников"""
 
-        print('srcdirlist check column clicked')
+        self.__srcdirlist_select_all(not (self.chkSDirSel.get_active() or self.chkSDirSel.get_inconsistent()))
+
+    def btn_restart_clicked(self, wgt):
+        self.pages.set_current_page(0)
 
     def show_about_box(self, wgt):
         self.dlgAbout.show()
