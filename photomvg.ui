@@ -20,12 +20,15 @@
       <column type="gchararray"/>
     </columns>
   </object>
+  <object class="GtkFileFilter" id="srcdirlistchoserfilter">
+    <mime-types>
+      <mime-type>inode/directory</mime-type>
+    </mime-types>
+  </object>
   <object class="GtkListStore" id="srcdirliststore">
     <columns>
       <!-- column-name selected -->
       <column type="gboolean"/>
-      <!-- column-name icon -->
-      <column type="GdkPixbuf"/>
       <!-- column-name directory -->
       <column type="gchararray"/>
     </columns>
@@ -191,9 +194,13 @@
                                 </child>
                                 <child>
                                   <object class="GtkTreeViewColumn" id="colSDirSel">
+                                    <property name="clickable">True</property>
                                     <property name="widget">chkSDirSel</property>
+                                    <signal name="clicked" handler="srcdirlist_sel_col_clicked" swapped="no"/>
                                     <child>
-                                      <object class="GtkCellRendererToggle" id="crSDirSel"/>
+                                      <object class="GtkCellRendererToggle" id="crSDirSel">
+                                        <signal name="toggled" handler="srcdirlist_item_sel_toggled" swapped="no"/>
+                                      </object>
                                       <attributes>
                                         <attribute name="active">0</attribute>
                                       </attributes>
@@ -204,17 +211,11 @@
                                   <object class="GtkTreeViewColumn" id="colSDir">
                                     <property name="title" translatable="yes">Каталог</property>
                                     <child>
-                                      <object class="GtkCellRendererPixbuf" id="crSDirIcon"/>
-                                      <attributes>
-                                        <attribute name="pixbuf">1</attribute>
-                                      </attributes>
-                                    </child>
-                                    <child>
                                       <object class="GtkCellRendererText" id="crSDirPath">
                                         <property name="ellipsize">middle</property>
                                       </object>
                                       <attributes>
-                                        <attribute name="text">2</attribute>
+                                        <attribute name="text">1</attribute>
                                       </attributes>
                                     </child>
                                   </object>
@@ -795,6 +796,7 @@
     <property name="skip_pager_hint">True</property>
     <property name="attached_to">wndMain</property>
     <property name="action">select-folder</property>
+    <property name="filter">srcdirlistchoserfilter</property>
     <property name="select_multiple">True</property>
     <child>
       <placeholder/>
@@ -827,6 +829,8 @@
                 <property name="label">gtk-ok</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
+                <property name="can_default">True</property>
+                <property name="has_default">True</property>
                 <property name="receives_default">True</property>
                 <property name="use_stock">True</property>
               </object>

@@ -327,6 +327,58 @@ class ZipFileResourceLoader(FileResourceLoader):
                 raise Exception('Не удалось загрузить файл "%s" - %s' % (filename, str(ex)))
 
 
+class TreeViewShell():
+    """Обёртка для упрощения дёргания Gtk.TreeView"""
+
+    def __init__(self, tv):
+        """tv   - экземпляр Gtk.TreeView."""
+
+        self.view = tv
+        self.store = tv.get_model()
+        self.selection = tv.get_selection()
+
+        # см. метод select_iter
+        self.expandSelectedRow = False
+        self.expandSelectedAll = False
+
+    @classmethod
+    def new(cls, tv):
+        # сей метод - для единообразия
+        return cls(tv)
+
+    @classmethod
+    def new_from_uibuilder(cls, builder, widgetname):
+        """Создаёт экземпляр TreeViewShell, запрашивая
+        экземпляр Gtk.TreeView у builder (экземпляра класса Gtk.Builder)
+        по имени виджета widgetname."""
+
+        return cls(builder.get_object(widgetname))
+
+    def get_selected_iter(self):
+        """Возвращает Gtk.TreeIter первого выбранного элемента (если
+        что-то выбрано) или None."""
+
+        sel = self.selection.get_selected_rows()
+
+        if sel is not None:
+            rows = sel[1]
+            if rows:
+                return self.store.get_iter(rows[0])
+
+    def filetree_select_iter(self, itr):
+        """Выбирает элемент в дереве, указанный itr (экземпляром
+        Gtk.TreeIter), при необходимости заставляет TreeView развернуть
+        соответствующий уровень дерева."""
+
+        path = self.store.get_path(itr)
+
+        if self.expandSelectedRow:
+            self.view.expand_row(path, self.expandSelectedAll)
+
+        self.selection.select_path(path)
+        self.view.set_cursor(path, None, False)
+
+
 if __name__ == '__main__':
     print('[test of %s]' % __file__)
 

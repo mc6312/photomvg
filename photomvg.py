@@ -38,10 +38,10 @@ class MainWnd():
     # номера страниц в pages
     PAGE_SRCDIRS, PAGE_PROGRESS, PAGE_DESTFNAMES, PAGE_FINAL = range(4)
 
-    # столбцы в filetreestore
+    # столбцы в filetree.store
     FTCOL_INFO, FTCOL_ICON, FTCOL_FNAME, FTCOL_TOOLTIP = range(4)
 
-    # типы элементов дерева в filetreestore
+    # типы элементов дерева в filetree.store
     # внимание, времянка!
     # потом будет переделано или дополнено для поддержки файла настроек
     # (которого ещё нет)
@@ -52,8 +52,8 @@ class MainWnd():
         (FTYPE_VIDEO, 'video-x-generic'),
         (FTYPE_OTHER, 'gtk-file')) # 'dialog-question'
 
-    # столбцы в srcdirliststore
-    SDCOL_SEL, SDCOL_ICON, SDCOL_DIRNAME = range(3)
+    # столбцы в srcdirlist.store
+    SDCOL_SEL, SDCOL_DIRNAME = range(2)
 
     class FileInfo():
         """Вспомогательный костыль, экземпляр которого кладётся
@@ -132,8 +132,7 @@ class MainWnd():
         #
         # список каталогов-источников
         #
-        self.srcdirlistview, self.srcdirliststore, self.srcdirlistsel = get_ui_widgets(uibldr,
-            ('srcdirlistview', 'srcdirliststore', 'srcdirlistsel'))
+        self.srcdirlist = TreeViewShell.new_from_uibuilder(uibldr, 'srcdirlistview')
 
         self.curSrcDir = os.path.expanduser('~') # для dlgSDirChoose
         self.dlgSDirChoose = uibldr.get_object('dlgSDirChoose')
@@ -141,8 +140,7 @@ class MainWnd():
         #
         # дерево новых каталогов/файлов
         #
-        self.filetreeview, self.filetreestore, self.filetreesel = get_ui_widgets(uibldr,
-            ('filetreeview', 'filetreestore', 'filetreesel'))
+        self.filetree = TreeViewShell.new_from_uibuilder(uibldr, 'filetreeview')
 
         # костыль для обработки DnD, см. filetree_drag_data_received(), filetree_drag_end()
         self.filetreedroprow = None
@@ -190,8 +188,8 @@ class MainWnd():
 
                 tooltip = 'Оригинальное имя файла: <b>%s</b>' % srcfname
 
-                itr = self.filetreestore.append(toiter,
-                    # проверяй порядок значений FTCOL_* и столбцов filetreestore в *.ui!
+                itr = self.filetree.store.append(toiter,
+                    # проверяй порядок значений FTCOL_* и столбцов filetree.store в *.ui!
                     (info, self.icons[ftype][False], fname, tooltip))
 
                 if info.ftype == self.FTYPE_DIR:
@@ -208,31 +206,31 @@ class MainWnd():
         oldname = None
 
         # подразумевается, что дерево отсортировано по полю FTCOL_FNAME!
-        itr = self.filetreestore.iter_children(self.filetreestore.iter_parent(curitr))
+        itr = self.filetree.store.iter_children(self.filetree.store.iter_parent(curitr))
 
         while itr is not None:
-            info, fname = self.filetreestore.get(itr, self.FTCOL_INFO, self.FTCOL_FNAME)
+            info, fname = self.filetree.store.get(itr, self.FTCOL_INFO, self.FTCOL_FNAME)
 
             info.isbad = oldname is not None and oldname == fname
 
-            self.filetreestore.set_value(itr,
+            self.filetree.store.set_value(itr,
                 self.FTCOL_ICON,
                 self.icons[info.ftype][info.isbad])
 
             oldname = fname
 
-            itr = self.filetreestore.iter_next(itr)
+            itr = self.filetree.store.iter_next(itr)
 
     def filetree_name_edited(self, crt, path, fname):
         """Имя файла в столбце treeview изменено.
         Проверяем на правильность и кладём в соотв. столбец treemodel."""
 
-        itr = self.filetreestore.get_iter(path)
-        info = self.filetreestore.get_value(itr, self.FTCOL_INFO)
+        itr = self.filetree.store.get_iter(path)
+        info = self.filetree.store.get_value(itr, self.FTCOL_INFO)
 
         fname = filename_validate(fname, info.fext)
 
-        self.filetreestore.set_value(itr, self.FTCOL_FNAME, fname)
+        self.filetree.store.set_value(itr, self.FTCOL_FNAME, fname)
 
         # а теперь проверяем весь текущий уровень дерева на одинаковые имена
         self.filetree_check_node(itr)
@@ -247,19 +245,19 @@ class MainWnd():
         Разрешаем перемещение только в каталоги и между файлов, чтобы treeview
         не мог сделать элемент типа "файл" дочерним элементом другого файла."""
 
-        r = self.filetreeview.get_dest_row_at_pos(x, y)
+        r = self.filetree.view.get_dest_row_at_pos(x, y)
         if r is not None:
             path, pos = r
 
             if path is not None:
-                info = self.filetreestore.get_value(self.filetreestore.get_iter(path), self.FTCOL_INFO)
+                info = self.filetree.store.get_value(self.filetree.store.get_iter(path), self.FTCOL_INFO)
                 if info.ftype != self.FTYPE_DIR and pos in (Gtk.TreeViewDropPosition.INTO_OR_BEFORE, Gtk.TreeViewDropPosition.INTO_OR_AFTER):
                     return True
 
         return False
 
     def filetree_drag_data_received(self, tv, ctx, x, y, data, info, time):
-        drop = self.filetreeview.get_dest_row_at_pos(x, y)
+        drop = self.filetree.view.get_dest_row_at_pos(x, y)
 
         if drop is not None and drop[0]:
             self.filetreedroprow = drop[0]
@@ -274,7 +272,7 @@ class MainWnd():
 
         if self.filetreedroprow:
             try:
-                itr = self.filetreestore.get_iter(self.filetreedroprow)
+                itr = self.filetree.store.get_iter(self.filetreedroprow)
             except ValueError:
                 # в некоторых случаях перемещения ветвь self.filetreedroprow
                 # уже не существует на момент вызова drag_end,
@@ -291,20 +289,20 @@ class MainWnd():
     def filetree_enable_sorting(self, enable):
         """Разрешение/запрет сортировки treestore."""
 
-        self.filetreestore.set_sort_column_id(
+        self.filetree.store.set_sort_column_id(
             self.FTCOL_FNAME if enable else Gtk.TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID,
             Gtk.SortType.ASCENDING)
 
     def filetree_refresh(self):
-        self.filetreeview.set_model(None)
+        self.filetree.view.set_model(None)
 
         self.filetree_enable_sorting(False)
-        self.filetreestore.clear()
+        self.filetree.store.clear()
 
         self.__scan_dir_to_filetree(os.path.expanduser(SRCDIR), None)
 
         self.filetree_enable_sorting(True)
-        self.filetreeview.set_model(self.filetreestore)
+        self.filetree.view.set_model(self.filetree.store)
 
     def filetree_get_full_path(self, itr):
         """Возвращает строку с полным путём к элементу дерева,
@@ -312,43 +310,24 @@ class MainWnd():
 
         path = []
         while itr is not None:
-            path.append(self.filetreestore.get_value(itr, self.FTCOL_FNAME))
-            itr = self.filetreestore.iter_parent(itr)
+            path.append(self.filetree.store.get_value(itr, self.FTCOL_FNAME))
+            itr = self.filetree.store.iter_parent(itr)
 
         path.reverse()
 
         return os.path.join(*path)
-
-    def filetree_get_1st_selected_iter(self):
-        """Возвращает Gtk.TreeIter первого выбранного элемента (если
-        что-то выбрано) или None."""
-
-        sel = self.filetreesel.get_selected_rows()
-
-        if sel is not None:
-            rows = sel[1]
-            if rows:
-                return self.filetreestore.get_iter(rows[0])
-
-    def filetree_select_iter(self, itr):
-        path = self.filetreestore.get_path(itr)
-
-        self.filetreeview.expand_row(path, False)
-
-        self.filetreesel.select_path(path)
-        self.filetreeview.set_cursor(path, None, False)
 
     def filetree_new_dir(self, wgt):
         """Создаёт каталог в верхнем уровне дерева, если нет выбранных
         элементов, иначе - создаёт дочерний каталог для первого выбранного
         элемента, при условии, что элемент - каталог."""
 
-        itr = self.filetree_get_1st_selected_iter()
+        itr = self.filetree.get_selected_iter()
 
         if itr is None:
             parent = None
         else:
-            info = self.filetreestore.get_value(itr, self.FTCOL_INFO)
+            info = self.filetree.store.get_value(itr, self.FTCOL_INFO)
             if info.ftype != self.FTYPE_DIR:
                 return
 
@@ -356,7 +335,7 @@ class MainWnd():
 
         newinfo = self.FileInfo('', self.FTYPE_DIR, False, 'new')
 
-        itr = self.filetreestore.append(parent,
+        itr = self.filetree.store.append(parent,
             (newinfo, self.icons[newinfo.ftype][False], newinfo.srcfname,
             'Новый каталог. Переименуй его.'))
 
@@ -366,26 +345,26 @@ class MainWnd():
     def filetree_revert_srcname(self, wgt):
         """Возвращает исходные имена всем выбранным элементам."""
 
-        sel = self.filetreesel.get_selected_rows()
+        sel = self.filetree.selection.get_selected_rows()
 
         if sel is not None:
             for path in sel[1]:
-                itr = self.filetreestore.get_iter(path)
+                itr = self.filetree.store.get_iter(path)
 
-                info = self.filetreestore.get_value(itr, self.FTCOL_INFO)
-                self.filetreestore.set_value(itr, self.FTCOL_FNAME, info.srcfname)
+                info = self.filetree.store.get_value(itr, self.FTCOL_INFO)
+                self.filetree.store.set_value(itr, self.FTCOL_FNAME, info.srcfname)
 
     def filetree_remove_item(self, wgt):
         """Удаляет выбранные элементы."""
 
         # подтверждения пока что спрашивать не будем
-        sel = self.filetreesel.get_selected_rows()
+        sel = self.filetree.selection.get_selected_rows()
 
         if sel is not None:
             for path in sel[1]:
                 try:
-                    itr = self.filetreestore.get_iter(path)
-                    self.filetreestore.remove(itr)
+                    itr = self.filetree.store.get_iter(path)
+                    self.filetree.store.remove(itr)
                 except ValueError:
                     # get_iter() падает с исключением, если path указывает
                     # на уже удалённый элемент!
@@ -403,23 +382,23 @@ class MainWnd():
 
         def __add_srcdir(newdirname):
             """Проверяет, не совпадает ли каталог newdirname с одним из
-            хранящихся в srcdirliststore, и не является ли подкаталогом
+            хранящихся в srcdirlist.store, и не является ли подкаталогом
             одного из хранящихся.
 
-            При отсутствии совпадений добавляет новый каталог в srcdirliststore
+            При отсутствии совпадений добавляет новый каталог в srcdirlist.store
             и возвращает True, иначе - возвращает False."""
 
-            itr = self.srcdirliststore.get_iter_first()
+            itr = self.srcdirlist.store.get_iter_first()
 
             while itr is not None:
-                dirname = self.srcdirliststore.get_value(itr, self.SDCOL_DIRNAME)
+                dirname = self.srcdirlist.store.get_value(itr, self.SDCOL_DIRNAME)
 
                 if same_dir(newdirname, dirname):
                     return False
 
-                itr = self.srcdirliststore.iter_next(itr)
+                itr = self.srcdirlist.store.iter_next(itr)
 
-            self.srcdirliststore.append((True, self.icons[self.FTYPE_DIR][False], newdirname))
+            self.srcdirlist.store.append((True, newdirname))
             return True
 
         baddirs = []
@@ -440,7 +419,29 @@ class MainWnd():
                      '\n'.join(baddirs)))
 
     def srcdirlist_remove(self, btn):
-        pass
+        itr = self.srcdirlist.get_selected_iter()
+        if itr is not None:
+            if msg_dialog(self.wndMain, 'Удаление каталог из списка',
+                    'Убрать из списка каталог "%s"?' % self.srcdirlist.store.get_value(itr, self.SDCOL_DIRNAME),
+                    Gtk.MessageType.QUESTION,
+                    Gtk.ButtonsType.YES_NO) != Gtk.ResponseType.YES:
+                return
+
+            self.srcdirlist.store.remove(itr)
+
+    def srcdirlist_item_sel_toggled(self, cr, path):
+        # нажат чекбокс в списке каталогов-источников
+
+        itr = self.srcdirlist.get_selected_iter()
+        if itr is not None:
+            self.srcdirlist.store.set_value(self.SDCOL_SEL,
+                not self.srcdirlist.store.get_value(self.SDCOL_SEL))
+
+    def srcdirlist_sel_col_clicked(self, cbtn):
+        # нажат чекбокс на заголовке столбца каталогов-источников
+        #self.__item_select_all(not (self.cbSelectAll.get_active() or self.cbSelectAll.get_inconsistent()))
+
+        print('srcdirlist check column clicked')
 
     def show_about_box(self, wgt):
         print('About Box not yet implemented!')
