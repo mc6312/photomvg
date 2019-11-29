@@ -304,6 +304,11 @@ class FileResourceLoader():
                 print('Loading fallback image "%s"' % fallback, file=stderr)
                 return Gtk.IconTheme.get_default().load_icon(fallback, height, Gtk.IconLookupFlags.FORCE_SIZE)
 
+    def load_pixbuf_icon_size(self, filename, size, fallback=None):
+        size = Gtk.IconSize.lookup(size)[1]
+
+        return self.load_pixbuf(filename, size, size, fallback)
+
 
 class ZipFileResourceLoader(FileResourceLoader):
     """Загрузчик файлов ресурсов из архива ZIP.

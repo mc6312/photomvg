@@ -30,13 +30,14 @@ import os, os.path
 
 from pmvgcommon import *
 
-
-SRCDIR = '~/downloads/src'
+#debug
+from time import sleep
 
 
 class MainWnd():
     # номера страниц в pages
     PAGE_SRCDIRS, PAGE_PROGRESS, PAGE_DESTFNAMES, PAGE_FINAL = range(4)
+    PAGE_START = PAGE_SRCDIRS
 
     # столбцы в filetree.store
     FTCOL_INFO, FTCOL_ICON, FTCOL_FNAME, FTCOL_TOOLTIP = range(4)
@@ -79,7 +80,7 @@ class MainWnd():
         Gtk.main_quit()
 
     def wnd_delete_event(self, wnd, event):
-        pass
+        return self.jobRunning
 
     def wnd_configure_event(self, wnd, event):
         """Сменились размер/положение окна"""
@@ -89,15 +90,17 @@ class MainWnd():
         """Сменилось состояние окна"""
         pass
 
+    def do_exit(self, widget):
+        if not self.jobRunning:
+            self.wnd_destroy(widget)
+
     def __init__(self):
         resldr = get_resource_loader()
         uibldr = get_gtk_builder(resldr, 'photomvg.ui')
         #
         #
         #
-        sizeIconPx = Gtk.IconSize.lookup(Gtk.IconSize.DIALOG)[1]
-        appicon = resldr.load_pixbuf('images/photomvg.svg',
-            sizeIconPx, sizeIconPx)
+        appicon = resldr.load_pixbuf_icon_size('images/photomvg.svg', Gtk.IconSize.DIALOG)
 
         self.wndMain = uibldr.get_object('wndMain')
 
@@ -105,6 +108,9 @@ class MainWnd():
 
         self.headerBar = uibldr.get_object('headerBar')
         self.headerBar.set_title('PhotoMVG prototype')
+
+        uibldr.get_object('imgMainMenu').set_from_pixbuf(
+            resldr.load_pixbuf_icon_size('images/menu.svg', Gtk.IconSize.MENU))
 
         #
         sizeIcon = Gtk.IconSize.MENU
@@ -136,7 +142,7 @@ class MainWnd():
         #self.pages.set_show_tabs(False) # в .ui указано True для упрощения правки в Glade
 
         #
-        # список каталогов-источников
+        # PAGE_SRCDIRS, список каталогов-источников
         #
         self.srcdirlist = TreeViewShell.new_from_uibuilder(uibldr, 'srcdirlistview')
         self.srcdirlist.nSelected = 0
@@ -147,13 +153,30 @@ class MainWnd():
         self.curSrcDir = os.path.expanduser('~') # для dlgSDirChoose
         self.dlgSDirChoose = uibldr.get_object('dlgSDirChoose')
 
+        self.btnScanSrcDirs = uibldr.get_object('btnScanSrcDirs')
+
         #
-        # дерево новых каталогов/файлов
+        # PAGE_DESTFNAMES, дерево новых каталогов/файлов
         #
         self.filetree = TreeViewShell.new_from_uibuilder(uibldr, 'filetreeview')
 
         # костыль для обработки DnD, см. filetree_drag_data_received(), filetree_drag_end()
         self.filetreedroprow = None
+
+        #
+        # PAGE_PROGRESS, страница выполнения
+        #
+        self.txtProgressOperation, self.pbarScanSrcDirs = get_ui_widgets(uibldr,
+            ('txtProgressOperation', 'pbarScanSrcDirs'))
+
+        self.jobRunning = False
+        self.jobEndPage = 0
+
+        #
+        # PAGE_FINAL, страница завершения
+        #
+        self.txtFinalPageTitle, self.txtFinalPageMsg = get_ui_widgets(uibldr,
+            ('txtFinalPageTitle', 'txtFinalPageMsg'))
 
         #
         # о программе...
@@ -169,55 +192,13 @@ class MainWnd():
             128, 128,
             'image-x-generic'))
 
-        #!!!debug!!!
-        #self.filetree_refresh()
-
         #
         self.srcdirlist_update_sel_all_cbox()
-        self.pages.set_current_page(0)
+        self.pages.set_current_page(self.PAGE_START)
 
         uibldr.connect_signals(self)
 
         self.wndMain.show_all()
-
-    def __scan_dir_to_filetree(self, fromdirname, toiter):
-        if os.access(fromdirname, os.R_OK):
-            for srcfname in os.listdir(fromdirname):
-                if srcfname.startswith('.'):
-                    # скрытые файлы - игнорируем
-                    continue
-
-                fpath = os.path.join(fromdirname, srcfname)
-                if os.path.islink(fpath):
-                    if not os.path.exists(os.path.realpath(fpath)):
-                        # сломанные линки - пропускаем!
-                        continue
-
-                # потом сюда будет всобачиваться результат обработки шаблоном!
-                fname, fext = os.path.splitext(srcfname)
-                fext = fext.lower()
-                fname = '%s%s' % (fname, fext)
-
-                if os.path.isdir(fpath):
-                    ftype = self.FTYPE_DIR
-                # потом здесь будет определение типа файла по расширению из настроек!
-                elif fext in ('.cr2', '.cr3', '.nef', '.arw', '.raw', '.jpg', '.jpeg', '.tiff', '.png'):
-                    ftype = self.FTYPE_IMAGE
-                elif fext in ('.avi', '.mpg', '.mpeg', '.mkv', '.m4v', '.mov', '.ts'):
-                    ftype = self.FTYPE_VIDEO
-                else:
-                    ftype = self.FTYPE_OTHER
-
-                info = self.FileInfo(fext, ftype, False, srcfname) #!!!!
-
-                tooltip = 'Оригинальное имя файла: <b>%s</b>' % srcfname
-
-                itr = self.filetree.store.append(toiter,
-                    # проверяй порядок значений FTCOL_* и столбцов filetree.store в *.ui!
-                    (info, self.icons[ftype][False], fname, tooltip))
-
-                if info.ftype == self.FTYPE_DIR:
-                    self.__scan_dir_to_filetree(fpath, itr)
 
     def filetree_check_node(self, curitr):
         """Проверка элементов Gtk.TreeStore, находящихся на одном уровне
@@ -317,16 +298,104 @@ class MainWnd():
             self.FTCOL_FNAME if enable else Gtk.TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID,
             Gtk.SortType.ASCENDING)
 
+    def __scan_dir_to_filetree(self, fromdirname, toiter, progress):
+        """Рекурсивный обход каталога с заполнением дерева filetree.store.
+        fromdirname - путь к каталогу,
+        toiter      - экземпляр Gtk.TreeIter, указывающий на позицию в filetree.store,
+        progress    - None или функция с двумя параметрами:
+                        text        - сообщение, отображаемое на прогрессбаре,
+                        fraction    - -1 или значение от 0.0 до 1.0.
+                      Функция должна возвращать булевское значение:
+                      True - продолжить, False - прервать работу."""
+
+        if not callable(progress):
+            progress = None
+
+        if os.access(fromdirname, os.R_OK):
+            for srcfname in os.listdir(fromdirname):
+                #!!!
+                if progress is not None:
+                    if not progress(fromdirname, -1):
+                        return
+
+                if srcfname.startswith('.'):
+                    # скрытые файлы - игнорируем
+                    continue
+
+                fpath = os.path.join(fromdirname, srcfname)
+                if os.path.islink(fpath):
+                    if not os.path.exists(os.path.realpath(fpath)):
+                        # сломанные линки - пропускаем!
+                        continue
+
+                # потом сюда будет всобачиваться результат обработки шаблоном!
+                fname, fext = os.path.splitext(srcfname)
+                fext = fext.lower()
+                fname = '%s%s' % (fname, fext)
+
+                if os.path.isdir(fpath):
+                    ftype = self.FTYPE_DIR
+                # потом здесь будет определение типа файла по расширению из настроек!
+                elif fext in ('.cr2', '.cr3', '.nef', '.arw', '.raw', '.jpg', '.jpeg', '.tiff', '.png'):
+                    ftype = self.FTYPE_IMAGE
+                elif fext in ('.avi', '.mpg', '.mpeg', '.mkv', '.m4v', '.mov', '.ts'):
+                    ftype = self.FTYPE_VIDEO
+                else:
+                    ftype = self.FTYPE_OTHER
+
+                info = self.FileInfo(fext, ftype, False, srcfname) #!!!!
+
+                tooltip = 'Оригинальное имя файла: <b>%s</b>' % srcfname
+
+                itr = self.filetree.store.append(toiter,
+                    # проверяй порядок значений FTCOL_* и столбцов filetree.store в *.ui!
+                    (info, self.icons[ftype][False], fname, tooltip))
+
+                if info.ftype == self.FTYPE_DIR:
+                    self.__scan_dir_to_filetree(fpath, itr, progress)
+
     def filetree_refresh(self):
+        """Обход каталогов из списка srcdirlist.store с заполнением дерева
+        filetree.store."""
+
+        self.job_begin('Поиск файлов...', self.PAGE_DESTFNAMES)
+
         self.filetree.view.set_model(None)
 
         self.filetree_enable_sorting(False)
         self.filetree.store.clear()
 
-        self.__scan_dir_to_filetree(os.path.expanduser(SRCDIR), None)
+        itr = self.srcdirlist.store.get_iter_first()
 
-        self.filetree_enable_sorting(True)
-        self.filetree.view.set_model(self.filetree.store)
+        try:
+            while itr is not None:
+                #!!!
+                if not self.jobRunning:
+                    break
+
+                chkd, dirname = self.srcdirlist.store.get(itr, self.SDCOL_SEL, self.SDCOL_DIRNAME)
+                if chkd:
+                    self.__scan_dir_to_filetree(dirname, None, self.job_progress)
+
+                itr = self.srcdirlist.store.iter_next(itr)
+        finally:
+            self.filetree_enable_sorting(True)
+            self.filetree.view.set_model(self.filetree.store)
+
+            if self.filetree.store.iter_n_children():
+                self.jobEndPage = self.PAGE_DESTFNAMES
+            else:
+                self.jobEndPage = self.PAGE_FINAL
+                self.txtFinalPageTitle.set_text('Поиск файлов завершён')
+                self.txtFinalPageMsg.set_text('Подходящие файлы не найдены.')
+
+            self.job_end()
+
+    def filetree_expand_all(self, btn):
+        self.filetree.view.expand_all()
+
+    def filetree_collapse_all(self, btn):
+        self.filetree.view.collapse_all()
 
     def filetree_get_full_path(self, itr):
         """Возвращает строку с полным путём к элементу дерева,
@@ -492,6 +561,8 @@ class MainWnd():
         self.chkSDirSel.set_active(sa)
         self.chkSDirSel.set_inconsistent(si)
 
+        self.btnScanSrcDirs.set_sensitive(self.srcdirlist.nSelected > 0)
+
     def __srcdirlist_select_all(self, sel):
         itr = self.srcdirlist.store.get_iter_first()
 
@@ -508,8 +579,41 @@ class MainWnd():
 
         self.__srcdirlist_select_all(not (self.chkSDirSel.get_active() or self.chkSDirSel.get_inconsistent()))
 
+    def job_begin(self, title, endpage):
+        self.txtProgressOperation.set_text(title)
+        self.pbarScanSrcDirs.set_fraction(0.0)
+
+        self.pages.set_current_page(self.PAGE_PROGRESS)
+        self.jobEndPage = endpage
+        self.jobRunning = True
+
+        self.headerBar.set_sensitive(False)
+
+    def job_progress(self, txt, fraction):
+        self.pbarScanSrcDirs.set_text(txt)
+
+        if fraction >= 0.0:
+            self.pbarScanSrcDirs.set_fraction(fraction)
+        else:
+            self.pbarScanSrcDirs.pulse()
+
+        flush_gtk_events()
+
+        return self.jobRunning
+
+    def job_end(self):
+        self.jobRunning = False
+        self.headerBar.set_sensitive(True)
+        self.pages.set_current_page(self.jobEndPage)
+
+    def job_stop(self, widget):
+        self.jobRunning = False
+
+    def btn_start_clicked(self, btn):
+        self.filetree_refresh()
+
     def btn_restart_clicked(self, wgt):
-        self.pages.set_current_page(0)
+        self.pages.set_current_page(self.PAGE_START)
 
     def show_about_box(self, wgt):
         self.dlgAbout.show()
