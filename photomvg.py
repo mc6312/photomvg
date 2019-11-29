@@ -29,9 +29,9 @@ import sys
 import os, os.path
 
 from pmvgcommon import *
-
-#debug
-from time import sleep
+from pmvgconfig import *
+from pmvgmetadata import *
+from pmvgtemplates import *
 
 
 class MainWnd():
@@ -94,7 +94,9 @@ class MainWnd():
         if not self.jobRunning:
             self.wnd_destroy(widget)
 
-    def __init__(self):
+    def __init__(self, env):
+        self.env = env
+
         resldr = get_resource_loader()
         uibldr = get_gtk_builder(resldr, 'photomvg.ui')
         #
@@ -111,6 +113,9 @@ class MainWnd():
 
         uibldr.get_object('imgMainMenu').set_from_pixbuf(
             resldr.load_pixbuf_icon_size('images/menu.svg', Gtk.IconSize.MENU))
+
+        self.mnuMainCloseIfSuccess = uibldr.get_object('mnuMainCloseIfSuccess')
+        self.mnuMainCloseIfSuccess.set_active(env.closeIfSuccess)
 
         #
         sizeIcon = Gtk.IconSize.MENU
@@ -145,8 +150,6 @@ class MainWnd():
         # PAGE_SRCDIRS, список каталогов-источников
         #
         self.srcdirlist = TreeViewShell.new_from_uibuilder(uibldr, 'srcdirlistview')
-        self.srcdirlist.nSelected = 0
-        self.srcdirlist.nTotal = 0 # дабы не дёргать лишний раз liststore.iter_n_children()
 
         self.chkSDirSel = uibldr.get_object('chkSDirSel')
 
@@ -154,6 +157,18 @@ class MainWnd():
         self.dlgSDirChoose = uibldr.get_object('dlgSDirChoose')
 
         self.btnScanSrcDirs = uibldr.get_object('btnScanSrcDirs')
+
+        # заполняем список
+        self.srcdirlist.nSelected = 0
+        self.srcdirlist.nTotal = len(self.env.sourceDirs) # дабы не дёргать лишний раз liststore.iter_n_children()
+
+        for srcdir in self.env.sourceDirs:
+            self.srcdirlist.store.append((srcdir.use, srcdir.path))
+
+            if srcdir.use:
+                self.srcdirlist.nSelected += 1
+
+        self.srcdirlist_update_sel_all_cbox()
 
         #
         # PAGE_DESTFNAMES, дерево новых каталогов/файлов
@@ -193,12 +208,15 @@ class MainWnd():
             'image-x-generic'))
 
         #
-        self.srcdirlist_update_sel_all_cbox()
         self.pages.set_current_page(self.PAGE_START)
 
         uibldr.connect_signals(self)
 
         self.wndMain.show_all()
+
+    def mnu_close_if_cuccess_toggled(self, mnuitem):
+        self.env.closeIfSuccess = mnuitem.get_active()
+        print(self.env.closeIfSuccess)
 
     def filetree_check_node(self, curitr):
         """Проверка элементов Gtk.TreeStore, находящихся на одном уровне
@@ -311,7 +329,10 @@ class MainWnd():
         if not callable(progress):
             progress = None
 
-        if os.access(fromdirname, os.R_OK):
+        # проверяем, есть ли у нас права на каталог
+        # (без этого os.listdir может рухнуть с исключением)
+        # заодно проверяется и наличие каталога
+        if os.access(fromdirname, os.F_OK | os.R_OK):
             for srcfname in os.listdir(fromdirname):
                 #!!!
                 if progress is not None:
@@ -625,7 +646,18 @@ class MainWnd():
 
 
 def main(args):
-    MainWnd().main()
+    env = Environment(sys.argv)
+
+    if env.error:
+        msg_dialog(None, TITLE,
+            'Ошибка в файле конфигурации:\n%s' % env.error)
+        return 1
+
+    try:
+        MainWnd(env).main()
+    finally:
+        pass
+        #env.save()
 
     return 0
 
