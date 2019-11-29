@@ -123,7 +123,7 @@ def same_dir(dir1, dir2):
 
 
 if __name__ == '__main__':
-    print('[%s test]' % __file__)
+    print('[debugging %s]' % __file__)
 
     #print(filename_validate('/some/filename:text'))
     try:

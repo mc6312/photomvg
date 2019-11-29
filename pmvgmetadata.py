@@ -2,20 +2,20 @@
 # -*- coding: utf-8 -*-
 
 
-""" This file is part of PhotoMV.
+""" This file is part of PhotoMVG.
 
-    PhotoMV is free software: you can redistribute it and/or modify
+    PhotoMVG is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    PhotoMV is distributed in the hope that it will be useful,
+    PhotoMVG is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with PhotoMV.  If not, see <http://www.gnu.org/licenses/>."""
+    along with PhotoMVG.  If not, see <http://www.gnu.org/licenses/>."""
 
 
 from gi import require_version as gi_require_version
@@ -37,7 +37,7 @@ class FileTypes():
     LONGSTR = {IMAGE:'photo', RAW_IMAGE:'raw', VIDEO:'video'}
 
     DEFAULT_FILE_EXTENSIONS = {
-        # список форматов RAW, спионеренный в RawTherapee
+        # список форматов RAW, спионеренный из RawTherapee
         RAW_IMAGE: {'.nef', '.cr2', '.cr3', '.crf',
             '.crw', '.3fr', '.arw', '.dcr', '.dng', '.fff', '.iiq', '.kdc',
             '.mef', '.mos', '.mrw', '.nrw', '.orf', '.pef', '.raf', '.raw',
@@ -60,7 +60,6 @@ class FileTypes():
 
         self.knownExtensions[ftype].update(extensions)
 
-
     def get_file_type(self, fileext):
         """Определяет по расширению fileext, известен ли программе
         тип файла, а также подтип - изображение или видео.
@@ -78,14 +77,14 @@ class FileTypes():
 
         return self.get_file_type(os.path.splitext(filename)[1].lower())
 
-    def __str__(self):
+    def __repr__(self):
         """Костыль для отладки"""
 
-        t = '\n'.join(map(lambda ft: '  %s: %s' % (self.LONGSTR[ft],
-                            ', '.join(self.knownExtensions[ft])),
-                        self.knownExtensions))
-        print(t)
-        return t
+        return '%s(%s)' % (self.__class__.__name__,
+            '\n'.join(map(lambda ft: '%s: %s' % (self.LONGSTR[ft],
+                          ', '.join(self.knownExtensions[ft])),
+                      self.knownExtensions))
+            )
 
 
 class FileMetadata():
@@ -96,10 +95,10 @@ class FileMetadata():
     __EXIF_DT_TAGS = ['Exif.Image.OriginalDateTime', 'Exif.Image.DateTime']
     __EXIF_MODEL = 'Exif.Image.Model'
 
-    __N_FIELDS = 9
+    __N_FIELDS = 10
 
     FILETYPE, MODEL, PREFIX, NUMBER, \
-    YEAR, MONTH, DAY, HOUR, MINUTE = range(__N_FIELDS)
+    YEAR, MONTH, DAY, HOUR, MINUTE, SECOND = range(__N_FIELDS)
 
     # выражение для выделения префикса и номера из имени файла
     # может не работать на файлах от некоторых камер - производители
@@ -218,9 +217,10 @@ class FileMetadata():
         self.fields[self.DAY]       = '%.2d' % dt.day
         self.fields[self.HOUR]      = '%.2d' % dt.hour
         self.fields[self.MINUTE]    = '%.2d' % dt.minute
+        self.fields[self.SECOND]    = '%.2d' % dt.second
 
     __FLD_NAMES = ('FILETYPE', 'MODEL', 'PREFIX', 'NUMBER',
-        'YEAR', 'MONTH', 'DAY', 'HOUR', 'MINUTE')
+        'YEAR', 'MONTH', 'DAY', 'HOUR', 'MINUTE', 'SECOND')
 
     def __str__(self):
         """Для отладки"""
@@ -231,9 +231,9 @@ class FileMetadata():
 
 
 if __name__ == '__main__':
-    print('[%s test]' % __file__)
+    print('[debugging %s]' % __file__)
 
-    from pmvcommon import *
+    #from pmvgcommon import *
 
     SOURCE_DIR = os.path.expanduser('~/downloads/src')
 

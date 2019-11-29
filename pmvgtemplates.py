@@ -2,23 +2,23 @@
 # -*- coding: utf-8 -*-
 
 
-""" This file is part of PhotoMV.
+""" This file is part of PhotoMVG.
 
-    PhotoMV is free software: you can redistribute it and/or modify
+    PhotoMVG is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    PhotoMV is distributed in the hope that it will be useful,
+    PhotoMVG is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with PhotoMV.  If not, see <http://www.gnu.org/licenses/>."""
+    along with PhotoMVG.  If not, see <http://www.gnu.org/licenses/>."""
 
 
-from pmvmetadata import FileMetadata, FileTypes
+from pmvgmetadata import FileMetadata, FileTypes
 import os.path
 
 
@@ -26,14 +26,14 @@ class FileNameTemplate():
     """Шаблон для переименования файлов"""
 
     # поля шаблона
-    YEAR, MONTH, DAY, HOUR, MINUTE, \
+    YEAR, MONTH, DAY, HOUR, MINUTE, SECOND, \
     MODEL, ALIAS, PREFIX, NUMBER, FILETYPE, LONGFILETYPE, \
-    FILENAME = range(12)
+    FILENAME = range(13)
 
     # отображение полей экземпляра FileMetadata в поля FileNameTemplate
     # для полей FileNameTemplate.ALIAS, .FILETYPE и .FILENAME - будет спец. обработка
     __METADATA_FIELDS = {YEAR:FileMetadata.YEAR, MONTH:FileMetadata.MONTH,
-        DAY:FileMetadata.DAY, HOUR:FileMetadata.HOUR, MINUTE:FileMetadata.MINUTE,
+        DAY:FileMetadata.DAY, HOUR:FileMetadata.HOUR, MINUTE:FileMetadata.MINUTE, SECOND:FileMetadata.SECOND,
         MODEL:FileMetadata.MODEL,
         PREFIX:FileMetadata.PREFIX, NUMBER:FileMetadata.NUMBER}
 
@@ -42,6 +42,7 @@ class FileNameTemplate():
         'd':DAY, 'day':DAY,                 # день
         'h':HOUR, 'hour':HOUR,              # час
         'm':MINUTE, 'minute':MINUTE,        # минута
+        's':SECOND, 'second':SECOND,        # секунда
         'model':MODEL,                      # модель камеры
         'a':ALIAS, 'alias':ALIAS,           # сокращенное название модели (если есть в Environment.aliases)
         'p':PREFIX, 'prefix':PREFIX,        # префикс из оригинального имени файла
@@ -49,6 +50,10 @@ class FileNameTemplate():
         't':FILETYPE, 'type':FILETYPE,      # тип файла, односимвольный вариант
         'l':LONGFILETYPE, 'longtype':LONGFILETYPE, # тип файла, длинный вариант
         'f':FILENAME, 'filename':FILENAME}  # оригинальное имя файла (без расширения)
+
+    __FLD_STRS = ('year', 'month', 'day', 'hour', 'minute', 'second',
+        'model', 'alias', 'prefix', 'number', 'filetype', 'longfiletype',
+        'filename')
 
     class Error(Exception):
         pass
@@ -191,27 +196,38 @@ class FileNameTemplate():
         return (*rawpath, metadata.fileExt)
 
     def __str__(self):
+        """Преобразование внутреннего представления в строку (в т.ч. для GUI)"""
+
+        return ''.join(map(lambda f: f if isinstance(f, str) else '{%s}' % self.__FLD_STRS[f], self.fields))
+
+    def __repr__(self):
         """Для отладки"""
 
-        return ''.join(map(lambda f: f if isinstance(f, str) else '<%d>' % f, self.fields))
+        return '%s(%s)' % (self.__class__.__name__, str(self))
 
 
 defaultFileNameTemplate = FileNameTemplate('{filename}')
 
 
 if __name__ == '__main__':
-    print('[%s test]' % __file__)
+    print('[debugging %s]' % __file__)
 
     import sys, os
-    from pmvconfig import Environment
+    from pmvgconfig import Environment
     env = Environment(sys.argv)
 
-    template = FileNameTemplate('{year}/{month}/{day}/{longtype}/{type}{year}{month}{day}_{ hour}{M}_{n}')
+    template = FileNameTemplate('{year}/{month}/{day}/{longtype}/{type}{year}{month}{day}_{ hour}{M}{s}_{n}')
 
     for root, dirs, files in os.walk(os.path.expanduser('~/downloads/src')):
         for fname in files:
             fpath = os.path.join(root, fname)
-            metadata = FileMetadata(fpath, env.knownFileTypes)
 
-            d, n, e = template.get_new_file_name(env, metadata)
-            print(fname, '->', os.path.join(d, n+e))
+            try:
+                metadata = FileMetadata(fpath, env.knownFileTypes)
+
+                d, n, e = template.get_new_file_name(env, metadata)
+                s = os.path.join(d, n+e)
+            except Exception:
+                s = 'invalid file or unsupported metadata format'
+
+            print(f'{fname} -> {s}')
