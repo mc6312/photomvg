@@ -24,6 +24,7 @@ from gtktools import *
 
 from gi.repository import Gtk, Gdk, GObject, Pango, GLib
 from gi.repository.GdkPixbuf import Pixbuf, InterpType as GdkPixbufInterpType
+from gi.repository.GLib import markup_escape_text
 
 import sys
 import os, os.path
@@ -42,19 +43,19 @@ class MainWnd():
     # столбцы в filetree.store
     FTCOL_INFO, FTCOL_ICON, FTCOL_FNAME, FTCOL_TOOLTIP = range(4)
 
-    # типы элементов дерева в filetree.store
-    # внимание, времянка!
-    # потом будет переделано или дополнено для поддержки файла настроек
-    # (которого ещё нет)
-    FTYPE_DIR, FTYPE_IMAGE, FTYPE_VIDEO, FTYPE_OTHER = range(4)
+    # иконки для типов элементов дерева в filetree.store
     ICONNAMES = (
-        (FTYPE_DIR, 'folder'),
-        (FTYPE_IMAGE, 'image-x-generic'),
-        (FTYPE_VIDEO, 'video-x-generic'),
-        (FTYPE_OTHER, 'gtk-file')) # 'dialog-question'
+        (FileTypes.DIRECTORY, 'folder'),
+        (FileTypes.IMAGE, 'image-x-generic'),
+        (FileTypes.RAW_IMAGE, 'emblem-photos'),
+        (FileTypes.VIDEO, 'video-x-generic'),
+        (None, 'gtk-file')) # 'dialog-question'
 
     # столбцы в srcdirlist.store
     SDCOL_SEL, SDCOL_DIRNAME = range(2)
+
+    # элементы cboxFOp
+    CBFOP_COPY, CBFOP_MOVE = range(2)
 
     class FileInfo():
         """Вспомогательный костыль, экземпляр которого кладётся
@@ -62,19 +63,21 @@ class MainWnd():
         treemodel.get_/set_ на произвольное кол-во столбцов.
         А вот fname придётся-таки держать в treemodel..."""
 
-        __slots__ = 'fext', 'ftype', 'isbad', 'srcfname'
+        __slots__ = 'fext', 'ftype', 'isdup', 'srcfname', 'metadata', 'srcdirix'
 
-        def __init__(self, fext, ftype, isbad, srcfname):
+        def __init__(self, fext, ftype, isdup, metadata, srcdirix, srcfname):
             self.fext = fext
             self.ftype = ftype
-            self.isbad = isbad
+            self.isdup = isdup
             self.srcfname = srcfname
+            self.srcdirix = srcdirix
+            self.metadata = metadata
 
         def __repr__(self):
             """Для отладки"""
 
-            return '%s(fext="%s", ftype=%d, isbad=%s, srcfname="%s")' % (self.__class__.__name__,
-                self.fext, self.ftype, self.isbad, self.srcfname)
+            return '%s(fext="%s", ftype=%d, isdup=%s, srcfname="%s", metadata=%s)' % (self.__class__.__name__,
+                self.fext, self.ftype, self.isdup, self.srcfname, self.metadata)
 
     def wnd_destroy(self, widget):
         Gtk.main_quit()
@@ -109,7 +112,8 @@ class MainWnd():
         self.wndMain.set_icon(appicon)
 
         self.headerBar = uibldr.get_object('headerBar')
-        self.headerBar.set_title('PhotoMVG prototype')
+        self.headerBar.set_title('PhotoMVG')
+        self.headerBar.set_subtitle('v%s' % VERSION)
 
         uibldr.get_object('imgMainMenu').set_from_pixbuf(
             resldr.load_pixbuf_icon_size('images/menu.svg', Gtk.IconSize.MENU))
@@ -134,8 +138,8 @@ class MainWnd():
 
             return {False:icon, True:erricon}
 
-        # словарь, где ключи - значения FTYPE_*, а значения -
-        # словари, где ключи - булевские значения (соотв. FileInfo.isbad),
+        # словарь, где ключи - значения FileTypes.*, а значения -
+        # словари, где ключи - булевские значения (соотв. FileInfo.isdup),
         # а значения - экземпляры Pixbuf
         self.icons = dict()
 
@@ -144,7 +148,7 @@ class MainWnd():
 
         #
         self.pages = uibldr.get_object('pages')
-        #self.pages.set_show_tabs(False) # в .ui указано True для упрощения правки в Glade
+        self.pages.set_show_tabs(False) # в .ui указано True для упрощения правки в Glade
 
         #
         # PAGE_SRCDIRS, список каталогов-источников
@@ -175,8 +179,34 @@ class MainWnd():
         #
         self.filetree = TreeViewShell.new_from_uibuilder(uibldr, 'filetreeview')
 
+        # каталоги, в которых найсены файлы подходящих типов,
+        # дабы не держать полные исходные пути в элементах дерева - память не резиновая
+        self.filetree.scannedSrcDirs = []
+        # счетчик файлов, у которых info.isdup = True
+        # обновляется при запуске методов filetree_refresh() и filetree_check_all()
+        self.filetree.filesWithDuplicates = 0
+        # счетчик всех файлов (но не каталогов)
+        # обновляется при запуске методов filetree_refresh() и filetree_check_all()
+        self.filetree.filesTotal = 0
+
         # костыль для обработки DnD, см. filetree_drag_data_received(), filetree_drag_end()
         self.filetreedroprow = None
+
+        # текст названия файловой операции (копирование или перемещение)
+        # устанавливается из fileops_update_mode_settings()
+        self.fileopModeTitle = ''
+
+        # виджеты настроек файловых операций
+
+        self.cboxFOp, self.fcbtnFOpDestDir, self.cboxFOpIfExists = get_ui_widgets(uibldr,
+            ('cboxFOp', 'fcbtnFOpDestDir', 'cboxFOpIfExists'))
+
+        self.cboxFOp.set_active(self.CBFOP_MOVE if self.env.modeMoveFiles else self.CBFOP_COPY)
+        self.fileops_update_mode_settings()
+
+        self.fcbtnFOpDestDir.set_current_folder(self.env.destinationDir)
+
+        self.cboxFOpIfExists.set_active(self.env.ifFileExists)
 
         #
         # PAGE_PROGRESS, страница выполнения
@@ -192,6 +222,9 @@ class MainWnd():
         #
         self.txtFinalPageTitle, self.txtFinalPageMsg = get_ui_widgets(uibldr,
             ('txtFinalPageTitle', 'txtFinalPageMsg'))
+
+        self.errorlist = TreeViewShell(uibldr.get_object('errorlistview'))
+        self.errorlistswnd = uibldr.get_object('errorlistswnd')
 
         #
         # о программе...
@@ -216,33 +249,82 @@ class MainWnd():
 
     def mnu_close_if_cuccess_toggled(self, mnuitem):
         self.env.closeIfSuccess = mnuitem.get_active()
-        print(self.env.closeIfSuccess)
 
-    def filetree_check_node(self, curitr):
-        """Проверка элементов Gtk.TreeStore, находящихся на одном уровне
-        с элементом, на который указывает curitr, включая указанный элемент.
+    def file_open_shell(self, menuitem):
+        itr = self.filetree.get_selected_iter()
+        if itr:
+            shell_open(self.filetree_get_full_src_path_from_itr(itr))
+
+    def filetree_check_node(self, curitr, checkChildren):
+        """Проверка элементов Gtk.TreeStore на повтор имён файлов.
+
+        curitr          - экземпляр Gtk.TreeIter,
+        checkChildren   - булевское значение:
+            если False, то curitr указывает на любой элемент _внутри_
+            ветви, и проверяются все элементы этой ветви, включая curitr,
+            и только на этом уровне;
+            если True, то рекурсивно проверяются дочерние элементы curitr.
+
         Проверяется повтор поля FTCOL_FNAME, т.к. совпадающие имена файлов
         в одном каталоге недопустимы. Проверка регистро-зависимая.
-        Для совпадающих имён значение поля FTCOL_ISBAD устанавливается в True,
-        также для них изменяется значок (значение поля FTCOL_ICON)."""
+        Для совпадающих имён значение поля info.isdup устанавливается в True,
+        также для них изменяется значок (значение поля FTCOL_ICON).
+
+        Возвращает кортеж из двух элементов:
+        1. общее количество файлов (но не каталогов) на текущем уровне и ниже,
+        2. количество файлов с совпадающими именами минус один,
+           (т.к. считаем, что из N файлов с одинаковыми именами один
+           "оригинал", остальные - "дубликаты"). Учитываются в т.ч. имена
+           каталогов, т.к. на одном уровне имя каталога и имя файла не должны
+           совпадать."""
+
+        nDuplicates = 0
+        nFiles = 0
 
         oldname = None
 
         # подразумевается, что дерево отсортировано по полю FTCOL_FNAME!
-        itr = self.filetree.store.iter_children(self.filetree.store.iter_parent(curitr))
+        if not checkChildren:
+            curitr = self.filetree.store.iter_parent(curitr)
+
+        itr = self.filetree.store.iter_children(curitr)
 
         while itr is not None:
             info, fname = self.filetree.store.get(itr, self.FTCOL_INFO, self.FTCOL_FNAME)
 
-            info.isbad = oldname is not None and oldname == fname
+            info.isdup = oldname is not None and oldname == fname
+            if info.isdup:
+                nDuplicates += 1
 
             self.filetree.store.set_value(itr,
                 self.FTCOL_ICON,
-                self.icons[info.ftype][info.isbad])
+                self.icons[info.ftype][info.isdup])
 
             oldname = fname
 
+            if info.ftype == FileTypes.DIRECTORY:
+                if checkChildren:
+                    nSubFiles, nSubDups = self.filetree_check_node(itr, True)
+                    if nSubDups:
+                        self.filetree.store.set_value(itr,
+                            self.FTCOL_ICON,
+                            self.icons[info.ftype][True])
+
+                    nDuplicates += nSubDups
+                    nFiles += nSubFiles
+            else:
+                nFiles += 1
+
             itr = self.filetree.store.iter_next(itr)
+
+        return (nFiles, nDuplicates)
+
+    def filetree_check_all(self):
+        """Проверка всего дерева filetree.store на повтор имён файлов
+        (см. filetree_check_node()). Обновляет значение счетчика
+        filetree.filesWithDuplicates."""
+
+        self.filetree.filesTotal, self.filetree.filesWithDuplicates = self.filetree_check_node(None, True)
 
     def filetree_name_edited(self, crt, path, fname):
         """Имя файла в столбце treeview изменено.
@@ -256,7 +338,7 @@ class MainWnd():
         self.filetree.store.set_value(itr, self.FTCOL_FNAME, fname)
 
         # а теперь проверяем весь текущий уровень дерева на одинаковые имена
-        self.filetree_check_node(itr)
+        self.filetree_check_node(itr, False)
 
     def filetree_drag_begin(self, tv, ctx):
         """Запрещаем сортировку treestore, т.к. она блокирует drag-n-drop."""
@@ -274,7 +356,7 @@ class MainWnd():
 
             if path is not None:
                 info = self.filetree.store.get_value(self.filetree.store.get_iter(path), self.FTCOL_INFO)
-                if info.ftype != self.FTYPE_DIR and pos in (Gtk.TreeViewDropPosition.INTO_OR_BEFORE, Gtk.TreeViewDropPosition.INTO_OR_AFTER):
+                if info.ftype != FileTypes.DIRECTORY and pos in (Gtk.TreeViewDropPosition.INTO_OR_BEFORE, Gtk.TreeViewDropPosition.INTO_OR_AFTER):
                     return True
 
         return False
@@ -333,47 +415,98 @@ class MainWnd():
         # (без этого os.listdir может рухнуть с исключением)
         # заодно проверяется и наличие каталога
         if os.access(fromdirname, os.F_OK | os.R_OK):
-            for srcfname in os.listdir(fromdirname):
-                #!!!
+            for rootdir, subdirs, files in os.walk(fromdirname):
                 if progress is not None:
                     if not progress(fromdirname, -1):
+                        # из гуЯ нажали кнопку "прервать"
                         return
 
-                if srcfname.startswith('.'):
-                    # скрытые файлы - игнорируем
-                    continue
+                srcdirix = len(self.filetree.scannedSrcDirs)
+                self.filetree.scannedSrcDirs.append(rootdir)
 
-                fpath = os.path.join(fromdirname, srcfname)
-                if os.path.islink(fpath):
-                    if not os.path.exists(os.path.realpath(fpath)):
-                        # сломанные линки - пропускаем!
+                for srcfname in files:
+                    # из гуЯ нажали кнопку "прервать"?
+                    if not self.jobRunning:
+                        return
+
+                    if srcfname.startswith('.'):
+                        # скрытые файлы - игнорируем
                         continue
 
-                # потом сюда будет всобачиваться результат обработки шаблоном!
-                fname, fext = os.path.splitext(srcfname)
-                fext = fext.lower()
-                fname = '%s%s' % (fname, fext)
+                    fpath = os.path.join(rootdir, srcfname)
+                    if os.path.islink(fpath):
+                        if not os.path.exists(os.path.realpath(fpath)):
+                            # сломанные линки - пропускаем!
+                            continue
 
-                if os.path.isdir(fpath):
-                    ftype = self.FTYPE_DIR
-                # потом здесь будет определение типа файла по расширению из настроек!
-                elif fext in ('.cr2', '.cr3', '.nef', '.arw', '.raw', '.jpg', '.jpeg', '.tiff', '.png'):
-                    ftype = self.FTYPE_IMAGE
-                elif fext in ('.avi', '.mpg', '.mpeg', '.mkv', '.m4v', '.mov', '.ts'):
-                    ftype = self.FTYPE_VIDEO
+                    if not os.path.isfile(fpath):
+                        # симлинк? пока игнорируем
+                        continue
+
+                    ftype = self.env.knownFileTypes.get_file_type_by_name(srcfname)
+
+                    if ftype is None:
+                        # файлы неизвестных типов пока игнорируем
+                        continue
+
+                    try:
+                        fmetadata = FileMetadata(fpath, self.env.knownFileTypes)
+                    except Exception as ex:
+                        # файлы известных типов, из которых не удаётся извлечь метаданные, пока что пропускаем с руганью,
+                        # считая их повреждёнными.
+                        # из исправных JPEG и пр., не содержащих EXIF, метаданные хоть какие-то да выжимаются,
+                        # потому сюда они не попадут
+                        print('Не удалось получить метаданные файла "%s" - %s' % (fpath, str(ex)), file=sys.stderr)
+                        continue
+
+                    # генерация нового имени шаблоном на основе метаданных
+                    tpl = self.env.get_template_from_metadata(fmetadata)
+                    fnewdir, fname, fext = tpl.get_new_file_name(self.env, fmetadata)
+                    fname = '%s%s' % (fname, fext)
+
+                    self.__filetree_append_item(fnewdir,
+                        fname,
+                        self.FileInfo(fext, ftype, False, fmetadata,
+                                      srcdirix, srcfname))
+
+    def __filetree_append_item(self, newdir, newfname, newinfo):
+        """Добавление поддерева элементов в filetree.store.
+        newdir      - относительный путь,
+        newfname    - имя файла,
+        newinfo     - экземпляр FileInfo."""
+
+        destitr = None # корень дерева
+        if newdir:
+            for subdir in newdir.split(os.path.sep):
+                founditr = None
+
+                itr = self.filetree.store.iter_children(destitr)
+                while itr is not None:
+                    sdname, info = self.filetree.store.get(itr, self.FTCOL_FNAME, self.FTCOL_INFO)
+
+                    if info.ftype == FileTypes.DIRECTORY and sdname == subdir:
+                        founditr = itr
+                        break
+
+                    itr = self.filetree.store.iter_next(itr)
+
+                if founditr:
+                    destitr = founditr
                 else:
-                    ftype = self.FTYPE_OTHER
+                    dname, dext = os.path.splitext(subdir)
+                    destitr = self.filetree.store.append(destitr,
+                        (self.FileInfo(dext, FileTypes.DIRECTORY, False, None, -1, subdir),
+                         self.icons[FileTypes.DIRECTORY][False],
+                         dname,
+                         ''))
 
-                info = self.FileInfo(fext, ftype, False, srcfname) #!!!!
+        tooltip = 'Оригинальное имя файла: <b>%s</b>' % newinfo.srcfname
 
-                tooltip = 'Оригинальное имя файла: <b>%s</b>' % srcfname
+        self.filetree.store.append(destitr,
+            # проверяй порядок значений FTCOL_* и столбцов filetree.store в *.ui!
+            (newinfo, self.icons[newinfo.ftype][False], newfname, tooltip))
 
-                itr = self.filetree.store.append(toiter,
-                    # проверяй порядок значений FTCOL_* и столбцов filetree.store в *.ui!
-                    (info, self.icons[ftype][False], fname, tooltip))
-
-                if info.ftype == self.FTYPE_DIR:
-                    self.__scan_dir_to_filetree(fpath, itr, progress)
+        self.filetree.filesTotal += 1
 
     def filetree_refresh(self):
         """Обход каталогов из списка srcdirlist.store с заполнением дерева
@@ -385,6 +518,9 @@ class MainWnd():
 
         self.filetree_enable_sorting(False)
         self.filetree.store.clear()
+        self.filetree.scannedSrcDirs.clear()
+        self.filetree.filesWithDuplicates = 0
+        self.filetree.filesTotal = 0
 
         itr = self.srcdirlist.store.get_iter_first()
 
@@ -418,11 +554,13 @@ class MainWnd():
     def filetree_collapse_all(self, btn):
         self.filetree.view.collapse_all()
 
-    def filetree_get_full_path(self, itr):
-        """Возвращает строку с полным путём к элементу дерева,
-        указанному itr."""
+    def filetree_get_item_dest_dir(self, itr):
+        """Возвращает строку с именем каталога, соответствующим
+        элементу дерева, указанному itr, без имени самого элемента."""
 
+        itr = self.filetree.store.iter_parent(itr)
         path = []
+
         while itr is not None:
             path.append(self.filetree.store.get_value(itr, self.FTCOL_FNAME))
             itr = self.filetree.store.iter_parent(itr)
@@ -430,6 +568,18 @@ class MainWnd():
         path.reverse()
 
         return os.path.join(*path)
+
+    def filetree_get_full_src_path(self, info):
+        """Возвращает строку с полным исходным путём файла,
+        указанного info - экземпляром FileInfo."""
+
+        return os.path.join(self.filetree.scannedSrcDirs[info.srcdirix], info.srcfname)
+
+    def filetree_get_full_src_path_from_itr(self, itr):
+        """Возвращает строку с полным исходным путём файла,
+        указанного itr - экземпляром Gtk.TreeIter."""
+
+        return self.filetree_get_full_src_path(self.filetree.store.get_value(itr, self.FTCOL_INFO))
 
     def filetree_new_dir(self, wgt):
         """Создаёт каталог в верхнем уровне дерева, если нет выбранных
@@ -442,12 +592,12 @@ class MainWnd():
             parent = None
         else:
             info = self.filetree.store.get_value(itr, self.FTCOL_INFO)
-            if info.ftype != self.FTYPE_DIR:
+            if info.ftype != FileTypes.DIRECTORY:
                 return
 
             parent = itr
 
-        newinfo = self.FileInfo('', self.FTYPE_DIR, False, 'new')
+        newinfo = self.FileInfo('', FileTypes.DIRECTORY, False, 'new')
 
         itr = self.filetree.store.append(parent,
             (newinfo, self.icons[newinfo.ftype][False], newinfo.srcfname,
@@ -630,6 +780,193 @@ class MainWnd():
     def job_stop(self, widget):
         self.jobRunning = False
 
+    def fileops_update_mode_settings(self):
+        if self.env.modeMoveFiles:
+            self.fileopModeTitle = 'Перемещение'
+        else:
+            self.fileopModeTitle = 'Копирование'
+
+    def fileops_mode_changed(self, cbox):
+        ix = cbox.get_active()
+        if ix < 0:
+            ix = 0
+
+        self.env.modeMoveFiles = ix == self.CBFOP_MOVE
+        self.fileops_update_mode_settings()
+
+    def fileops_ifexists_changed(self, cbox):
+        ix = cbox.get_active()
+        if ix < 0:
+            ix = 0
+
+        self.env.ifFileExists = ix
+
+    def fileops_dest_dir_set(self, fcb):
+        self.env.destinationDir = fcb.get_current_folder()
+
+    class FileOpContext():
+        __slots__ = 'skippedfiles', 'fileindex', 'skippg', 'errors'
+
+        SKIP_PG = 1000
+
+        def __init__(self):
+            self.skippedfiles = 0
+            self.fileindex = 0.0
+            self.skippg = self.SKIP_PG
+            self.errors = 0
+
+        def next_file(self):
+            self.fileindex += 1.0
+
+        def skip_pg(self):
+            if self.skippg > 0:
+                self.skippg -= 1
+                return False
+            else:
+                self.skippg = self.SKIP_PG
+                return True
+
+    def fileops_execute(self):
+        """Основная часть работы - копирование или перемещение файлов
+        в новые каталоги под новыми именами."""
+
+        sTitle = '%s файлов' % self.fileopModeTitle
+
+        def __stop_msg(msg):
+            msg_dialog(self.wndMain, sTitle, msg)
+
+        if self.filetree.filesTotal == 0:
+            __stop_msg('Нет файлов для обработки.')
+            return
+
+        self.filetree_check_all()
+        if self.filetree.filesWithDuplicates:
+            __stop_msg('''Обнаружено совпадение новых имён файлов (%d).
+Без исправления имён продолжение работы невозможно.''' % self.filetree.filesWithDuplicates)
+            return
+
+        fileopFunction = shutil.move if self.env.modeMoveFiles else shutil.copy
+        fileopVerb = 'переместить' if self.env.modeMoveFiles else 'скопировать'
+
+        foctx = self.FileOpContext()
+
+        self.job_begin(sTitle, self.PAGE_FINAL)
+        self.errorlist.view.set_model(None)
+        self.errorlist.store.clear()
+        try:
+            # здесь создаём каталог(и) назначения и лОжим в них файлы
+
+            serr = make_dirs(self.env.destinationDir)
+            if serr:
+                self.job_error(markup_escape_text(serr))
+                foctx.errors += 1
+
+            # пошли надругаться над файлами
+            def __process_node(fromitr, ctx):
+                itr = self.filetree.store.iter_children(fromitr)
+
+                while itr is not None:
+                    # проверяем, не нажата ли кнопка "прервать"
+                    if not self.jobRunning:
+                        return
+
+                    if ctx.skip_pg():
+                        # проверяем, не нажата ли кнопка "прервать"
+                        if not self.job_progress('', ctx.fileindex / self.filetree.filesTotal):
+                            return
+
+                    fdestname, info = self.filetree.store.get(itr, self.FTCOL_FNAME, self.FTCOL_INFO)
+                    if info.ftype != FileTypes.DIRECTORY:
+                        ctx.next_file()
+
+                        fdestdir = os.path.join(self.env.destinationDir, self.filetree_get_item_dest_dir(itr))
+
+                        serr = make_dirs(fdestdir)
+                        if serr:
+                            self.job_error(markup_escape_text(serr))
+                            return
+
+                        fdestpath = os.path.join(fdestdir, fdestname)
+
+                        #
+                        # проверяем, нету ли уже такого файла...
+                        #
+                        enableFOp = True
+
+                        if os.path.exists(fdestpath):
+                            if self.env.ifFileExists == self.env.FEXIST_SKIP:
+                                self.job_error('Файл "%s" уже существует, пропускаю' % markup_escape_text(fdestname))
+                                ctx.errors += 1
+                                ctx.skippedfiles += 1
+                                enableFOp = False
+                            elif env.ifFileExists == env.FEXIST_RENAME:
+                                # пытаемся подобрать незанятое имя
+
+                                canBeRenamed = False
+
+                                fdestname, fdestext = os.path.splitext(fdestname)
+
+                                # нефиг больше 10 повторов... и 10-то много
+                                for unum in range(1, 11):
+                                    fdestpath = os.path.join(fdestdir, '%s-%d%s' % (fdestname, unum, fdestext))
+
+                                    if not os.path.exists(fdestpath):
+                                        canBeRenamed = True
+                                        break
+
+                                if not canBeRenamed:
+                                    self.job_error(markup_escape_text('В каталоге "%s" слишком много файлов с именем %s*%s' % (fdestdir, fdestname, fdestext)))
+                                    ctx.errors += 1
+                                    ctx.skippedfiles += 1
+                                    enableFOp = False
+                            else:
+                                print('overwriting')
+                            # else:
+                            # env.FEXIST_OVERWRITE - перезаписываем
+
+                        #
+                        # а теперь уже пытаемся скопировать или переместить
+                        #
+                        if enableFOp:
+                            fsrcpath = os.path.join(self.filetree.scannedSrcDirs[info.srcdirix], info.srcfname)
+
+                            try:
+                                fileopFunction(fsrcpath, fdestpath)
+                            except (IOError, os.error) as emsg:
+                                print_exception()
+                                ctx.errors += 1
+                                self.job_error(markup_escape_text('Не удалось % файл - %s' % (fileopVerb, repr(emsg))))
+
+                    else:
+                        __process_node(itr, ctx)
+
+                    itr = self.filetree.store.iter_next(itr)
+
+            __process_node(None, foctx)
+
+        finally:
+            self.txtFinalPageTitle.set_text('%s завершёно' % sTitle)
+            self.txtFinalPageMsg.set_text(('%s выполнено успешно' % sTitle) if foctx.errors == 0 else 'Ошибок: %d.' % foctx.errors)
+
+            self.job_end()
+
+            self.errorlist.view.set_model(self.errorlist.store)
+            self.errorlistswnd.set_visible(foctx.errors != 0)
+
+            if self.env.closeIfSuccess and foctx.errors == 0:
+                self.do_exit(self.wndMain)
+
+    def job_error(self, msg):
+        """Добавляет текст сообщения об ошибке в отображалку.
+        Текст может содержать Pango Markup, соответственно,
+        добавляемые в текст строки при необходимости должны быть
+        пропущены через markup_escape_text()."""
+
+        self.errorlist.store.append((msg, ))
+
+    def btn_fileops_start_clicked(self, btn):
+        self.fileops_execute()
+
     def btn_start_clicked(self, btn):
         self.filetree_refresh()
 
@@ -656,7 +993,7 @@ def main(args):
     try:
         MainWnd(env).main()
     finally:
-        pass
+        print('Внимание! Сохранение настроек НЕ ДОДЕЛАНО и не производится', file=sys.stderr)
         #env.save()
 
     return 0

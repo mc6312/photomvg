@@ -31,7 +31,8 @@ import re
 class FileTypes():
     """Вспомогательный класс для определения типа файла по расширению."""
 
-    IMAGE, RAW_IMAGE, VIDEO = range(3)
+    DIRECTORY, IMAGE, RAW_IMAGE, VIDEO = range(4)
+    # тип "DIRECTORY" в этом модуле не используется, нужен для GUI
 
     STR = {IMAGE:'p', RAW_IMAGE:'p', VIDEO:'v'}
     LONGSTR = {IMAGE:'photo', RAW_IMAGE:'raw', VIDEO:'video'}
@@ -70,6 +71,7 @@ class FileTypes():
             if fileext in self.knownExtensions[ft]:
                 return ft
 
+        # просто так нагляднее
         return None
 
     def get_file_type_by_name(self, filename):
@@ -248,11 +250,12 @@ if __name__ == '__main__':
                 if fname.startswith('.'):
                     continue
 
+                ft = ftypes.get_file_type_by_name(fname)
+                print(fname, '->', FileTypes.LONGSTR[ft] if ft is not None else '?')
+
                 try:
                     r = FileMetadata(os.path.join(root, fname), ftypes)
-                    ft = ftypes.get_file_type_by_name(fname)
-                    print(fname, '->', FileTypes.LONGSTR[ft] if ft is not None else '?')
-                    print(r)
+                    #print(r)
                 except Exception as ex:
                     print('error getting metadata from "%s" - %s' % (fname, repr(ex)))
                     #print_exception()

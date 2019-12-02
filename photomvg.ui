@@ -8,6 +8,12 @@
     <property name="receives_default">False</property>
     <property name="draw_indicator">True</property>
   </object>
+  <object class="GtkListStore" id="errorliststore">
+    <columns>
+      <!-- column-name message -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
   <object class="GtkTreeStore" id="filetreestore">
     <columns>
       <!-- column-name info -->
@@ -24,6 +30,22 @@
     <property name="visible">True</property>
     <property name="can_focus">False</property>
     <property name="reserve_toggle_size">False</property>
+    <child>
+      <object class="GtkMenuItem" id="mnuFileOpen">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="label" translatable="yes">Открыть в файловом менеджере</property>
+        <property name="use_underline">True</property>
+        <signal name="activate" handler="file_open_shell" swapped="no"/>
+        <accelerator key="o" signal="activate" modifiers="GDK_CONTROL_MASK"/>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparatorMenuItem">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+      </object>
+    </child>
     <child>
       <object class="GtkMenuItem" id="mnuFileAbout">
         <property name="visible">True</property>
@@ -252,7 +274,7 @@
                     </child>
                   </object>
                   <packing>
-                    <property name="expand">False</property>
+                    <property name="expand">True</property>
                     <property name="fill">True</property>
                     <property name="position">1</property>
                   </packing>
@@ -646,6 +668,7 @@
                           <item translatable="yes">Копировать</item>
                           <item translatable="yes">Переместить</item>
                         </items>
+                        <signal name="changed" handler="fileops_mode_changed" swapped="no"/>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -666,11 +689,12 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkFileChooserButton" id="fcbtnDestDir">
+                      <object class="GtkFileChooserButton" id="fcbtnFOpDestDir">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="action">select-folder</property>
                         <property name="title" translatable="yes">Выбор каталога назначения</property>
+                        <signal name="file-set" handler="fileops_dest_dir_set" swapped="no"/>
                       </object>
                       <packing>
                         <property name="expand">True</property>
@@ -691,7 +715,7 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkComboBoxText" id="cboxFIfExists">
+                      <object class="GtkComboBoxText" id="cboxFOpIfExists">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="active">0</property>
@@ -700,6 +724,7 @@
                           <item translatable="yes">переименовывать</item>
                           <item translatable="yes">заменять существующие</item>
                         </items>
+                        <signal name="changed" handler="fileops_ifexists_changed" swapped="no"/>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -736,6 +761,7 @@
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
                         <property name="receives_default">True</property>
+                        <signal name="clicked" handler="btn_fileops_start_clicked" swapped="no"/>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -808,6 +834,7 @@
                                 <property name="visible">True</property>
                                 <property name="can_focus">False</property>
                                 <property name="orientation">vertical</property>
+                                <property name="spacing">4</property>
                                 <child>
                                   <object class="GtkLabel" id="txtFinalPageMsg">
                                     <property name="visible">True</property>
@@ -821,10 +848,41 @@
                                   </packing>
                                 </child>
                                 <child>
-                                  <placeholder/>
-                                </child>
-                                <child>
-                                  <placeholder/>
+                                  <object class="GtkScrolledWindow" id="errorlistswnd">
+                                    <property name="visible">True</property>
+                                    <property name="can_focus">True</property>
+                                    <property name="hscrollbar_policy">never</property>
+                                    <property name="shadow_type">in</property>
+                                    <property name="min_content_height">320</property>
+                                    <child>
+                                      <object class="GtkTreeView" id="errorlistview">
+                                        <property name="visible">True</property>
+                                        <property name="can_focus">True</property>
+                                        <property name="model">errorliststore</property>
+                                        <property name="headers_visible">False</property>
+                                        <property name="show_expanders">False</property>
+                                        <child internal-child="selection">
+                                          <object class="GtkTreeSelection" id="errorlistsel"/>
+                                        </child>
+                                        <child>
+                                          <object class="GtkTreeViewColumn" id="colFOpErrMsg">
+                                            <property name="title" translatable="yes">Сообщение</property>
+                                            <child>
+                                              <object class="GtkCellRendererText" id="crFOpErrText"/>
+                                              <attributes>
+                                                <attribute name="markup">0</attribute>
+                                              </attributes>
+                                            </child>
+                                          </object>
+                                        </child>
+                                      </object>
+                                    </child>
+                                  </object>
+                                  <packing>
+                                    <property name="expand">False</property>
+                                    <property name="fill">True</property>
+                                    <property name="position">1</property>
+                                  </packing>
                                 </child>
                               </object>
                             </child>

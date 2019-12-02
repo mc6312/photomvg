@@ -23,6 +23,7 @@ from locale import getdefaultlocale
 from configparser import RawConfigParser, Error as ConfigParserError
 from collections import namedtuple
 import shutil
+import subprocess
 import datetime
 
 
@@ -34,6 +35,66 @@ from pmvgmetadata import FileMetadata, FileTypes
 ENCODING = getdefaultlocale()[1]
 if not ENCODING:
     ENCODING = sys.getfilesystemencoding()
+
+
+#
+# шматок кроссплатформенности на всякий случай
+#
+
+def __get_os_parameters():
+    """Возвращает кортеж из двух элементов:
+    1й: полный путь к каталогу настроек, включая имя подкаталога PhotoMVG,
+    2й: ОС-специфичная команда открытия файлового менеджера."""
+
+    cfgDirPrefix = ''
+
+    if sys.platform == 'linux':
+        # подразумевается, что моё поделие запускается из-под дистрибутива
+        # Linux, соблюдающего XDG
+        # ошмётки поддержки всего прочего - лишь бы хоть как-то работало
+
+        try:
+            from xdg.BaseDirectory import xdg_config_home
+            cfgDir = xdg_config_home
+        except ImportError:
+            cfgDir = os.path.expanduser('~/.config')
+
+        # тут наличие модулей XDG уже не проверяем, всё на совести дистроклепателей
+        shellCmd = 'xdg-open'
+
+    elif sys.platform == 'win32':
+        shellCmd = 'start'
+
+        # XPюндель про LOCALAPPDATA не знает!
+        ES_LAD = 'LOCALAPPDATA'
+        cfgDir = os.environ[ES_LAD] if ES_LAD in os.environ else os.environ['APPDATA']
+
+    elif sys.platform == 'darwin':
+        shellCmd = 'open'
+
+        # плевал я на однокнопочные стандарты
+        cfgDir = os.path.expanduser('~/.config')
+        cfgDirPefix = '.'
+
+    else:
+        # не сработает - не мои проблемы
+        shellCmd = None
+
+        cfgDir = os.path.expanduser('~/')
+        cfgDirPefix = '.'
+
+    cfgDir = os.path.abspath(os.path.join(cfgDir, '%sphotomvg' % cfgDirPrefix))
+
+    return (cfgDir, shellCmd)
+
+
+__cfg_dir, __shell_cmd = __get_os_parameters()
+
+
+def shell_open(fpath):
+    """Пытается открыть файл или каталог fpath в файловом менеджере"""
+
+    subprocess.Popen([__shell_cmd, fpath])
 
 
 class PMVRawConfigParser(RawConfigParser):
@@ -84,10 +145,11 @@ class Environment():
 
     SEC_SRC_DIRS = 'src-dirs'
 
-    #FileMetadata.FILE_TYPE_IMAGE, FILE_TYPE_RAW_IMAGE, FILE_TYPE_VIDEO
-    OPT_KNOWN_FILE_TYPES = ('known-image-types',
-        'known-raw-image-types',
-        'known-video-types')
+    # FileTypes.IMAGE, RAW_IMAGE, VIDEO
+    # а FileTypes.DIRECTORY здесь НЕ используется!
+    OPT_KNOWN_FILE_TYPES = {FileTypes.IMAGE:'known-image-types',
+        FileTypes.RAW_IMAGE:'known-raw-image-types',
+        FileTypes.VIDEO:'known-video-types'}
 
     SEC_TEMPLATES = 'templates'
     DEFAULT_TEMPLATE_NAME = '*'
@@ -298,7 +360,9 @@ class Environment():
         #
         # known-*-types
         #
-        for ixopt, optname in enumerate(self.OPT_KNOWN_FILE_TYPES):
+        for ftype in self.OPT_KNOWN_FILE_TYPES:
+            optname = self.OPT_KNOWN_FILE_TYPES[ftype]
+
             kts = filter(None, self.cfg.getstr(self.SEC_OPTIONS, optname).lower().split(None))
 
             exts = set()
@@ -309,7 +373,7 @@ class Environment():
 
                 exts.add(ktype)
 
-            self.knownFileTypes.add_extensions(ixopt, exts)
+            self.knownFileTypes.add_extensions(ftype, exts)
 
     def __read_config_aliases(self):
         """Разбор секции aliases файла настроек"""
@@ -373,14 +437,9 @@ class Environment():
         cfgpath = os.path.join(os.path.split(me)[0], self.CFG_FILE)
 
         if not os.path.exists(cfgpath):
-            # если нету - лезем в стандартное расположение
-            # я пока ещё не готов полностью забить на кроссплатформенность,
-            # но при этом не вижу смысла ради маловероятного случая запуска
-            # PhotoMVG не из под Linux, а потому использую жёстко забитое
-            # имя подкаталога ~/.config вместо получения значения через
-            # платформо-зависимые функции
+            # если нету - лезем в ОС-специфический каталог (см. __get_os_parameters)
 
-            cfgdir = os.path.expanduser('~/.config/photomv')
+            cfgdir = __cfg_dir
             if not os.path.exists(cfgdir):
                 make_dirs(cfgdir, self.Error)
 
@@ -393,18 +452,17 @@ class Environment():
         """Сохранение настроек.
         В случае ошибки генерирует исключение."""
 
-
-
         # секция paths
-        self.cfg.set(self.SEC_PATHS, self.OPT_SRC_DIRS, ':'.join(map(lambda sd: '%s%s' % ('-' if sd.ignore else '', sd.path), self.sourceDirs)))
-        self.cfg.set(self.SEC_PATHS, self.OPT_DEST_DIR, self.destinationDir)
+        for ixsd, (srcdir, sduse) in enumerate(self.sourceDirs, 1):
+            self.cfg.set(self.SEC_SRC_DIRS, str(ixsd), '%s, %s' % (sduse, srcdir))
 
         # секция options
+        self.cfg.set(self.SEC_OPTIONS, self.OPT_DEST_DIR, self.destinationDir)
         self.cfg.set(self.SEC_OPTIONS, self.OPT_IF_EXISTS, self.FEXISTS_OPTIONS_STR[self.ifFileExists])
-        self.cfg.set(self.SEC_OPTIONS, self.OPT_SHOW_SRC_DIR, str(self.showSrcDir))
         self.cfg.set(self.SEC_OPTIONS, self.OPT_CLOSE_IF_SUCCESS, str(self.closeIfSuccess))
 
-        # секции aliases и templates не трогаем, т.к. они из гуя не изменяются
+        # секции aliases и templates ПОКА не трогаем, т.к. для их настроек ещё гуЯ нету
+        print('%s.save(): aliases/templates saving not yet implemented!' % self.__class__.__name__, file=sys.stderr)
 
         # сохраняем
         with open(self.configPath, 'w+', encoding=ENCODING) as f:
@@ -428,6 +486,16 @@ class Environment():
                 return self.templates[cameraModel]
 
         return self.templates[self.DEFAULT_TEMPLATE_NAME]
+
+    def get_template_from_metadata(self, metadata):
+        """Получение экземпляра pmvtemplates.FileNameTemplate для
+        определённой камеры, модель которой определяется по
+        соответствующему полю metadata - экземпляра FileMetadata."""
+
+        if not metadata.fields[metadata.MODEL]:
+            return self.templates[self.DEFAULT_TEMPLATE_NAME]
+        else:
+            return self.get_template(metadata.fields[metadata.MODEL])
 
     def __repr__(self):
         """Для отладки"""
@@ -464,6 +532,7 @@ if __name__ == '__main__':
         print('** %s' % str(ex))
         exit(1)
 
+    print(env.configPath)
     print(env)
     #tpl = env.get_template('')
     #print('template:', tpl, repr(tpl))
