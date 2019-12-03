@@ -187,7 +187,7 @@ class Environment():
         self.sourceDirs = []
 
         # каталог, в который копируются (или перемещаются) изображения
-        self.destinationDir = None
+        self.destinationDir = os.path.expanduser('~')
 
         # поддерживаемые типы файлов (по расширениям)
         self.knownFileTypes = FileTypes()
@@ -196,7 +196,7 @@ class Environment():
         self.ifFileExists = self.FEXIST_RENAME
 
         # закрывать ли программу в случае успешного завершения (копирования)
-        self.closeIfSuccess = True
+        self.closeIfSuccess = False
 
         # сокращенные псевдонимы камер
         # ключи словаря - названия камер, соответствующие соотв. полю EXIF

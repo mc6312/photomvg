@@ -570,7 +570,7 @@ class MainWnd():
 
         path.reverse()
 
-        return os.path.join(*path)
+        return os.path.join(*path) if path else ''
 
     def filetree_get_full_src_path(self, info):
         """Возвращает строку с полным исходным путём файла,
@@ -637,6 +637,19 @@ class MainWnd():
                     # на уже удалённый элемент!
                     pass
 
+    def srcdirlist_flush_to_env(self):
+        """Копирование списка исходных каталогов в env."""
+
+        self.env.sourceDirs.clear()
+
+        itr = self.srcdirlist.store.get_iter_first()
+
+        while itr is not None:
+            path, use = self.srcdirlist.store.get(itr, self.SDCOL_DIRNAME, self.SDCOL_SEL)
+            self.env.sourceDirs.append(self.env.SourceDir(path, use))
+
+            itr = self.srcdirlist.store.iter_next(itr)
+
     def srcdirlist_add(self, btn):
         self.dlgSDirChoose.set_current_folder(self.curSrcDir)
 
@@ -683,6 +696,8 @@ class MainWnd():
 
         self.srcdirlist_update_sel_all_cbox()
 
+        self.srcdirlist_flush_to_env()
+
         if baddirs:
             msg_dialog(self.wndMain,
                 self.dlgSDirChoose.get_title(),
@@ -706,6 +721,7 @@ class MainWnd():
             self.srcdirlist.nTotal -= 1
 
             self.srcdirlist_update_sel_all_cbox()
+            self.srcdirlist_flush_to_env()
 
     def srcdirlist_item_sel_toggled(self, cr, path):
         # нажат чекбокс в списке каталогов-источников
@@ -718,6 +734,7 @@ class MainWnd():
             self.srcdirlist.nSelected += -1 if not sel else 1
 
             self.srcdirlist_update_sel_all_cbox()
+            self.srcdirlist_flush_to_env()
 
     def srcdirlist_update_sel_all_cbox(self):
         """Обновление состояния чекбокса на заголовке столбца."""
@@ -747,6 +764,7 @@ class MainWnd():
         self.srcdirlist.nSelected = self.srcdirlist.nTotal if sel else 0
 
         self.srcdirlist_update_sel_all_cbox()
+        self.srcdirlist_flush_to_env()
 
     def srcdirlist_sel_col_clicked(self, cbtn):
         """нажат чекбокс на заголовке столбца каталогов-источников"""
@@ -898,11 +916,11 @@ class MainWnd():
 
                         if os.path.exists(fdestpath):
                             if self.env.ifFileExists == self.env.FEXIST_SKIP:
-                                self.job_error('Файл "%s" уже существует, пропускаю' % markup_escape_text(fdestname))
+                                self.job_error('Файл "%s" уже существует' % markup_escape_text(fdestname))
                                 ctx.errors += 1
                                 ctx.skippedfiles += 1
                                 enableFOp = False
-                            elif env.ifFileExists == env.FEXIST_RENAME:
+                            elif self.env.ifFileExists == self.env.FEXIST_RENAME:
                                 # пытаемся подобрать незанятое имя
 
                                 canBeRenamed = False
@@ -922,10 +940,8 @@ class MainWnd():
                                     ctx.errors += 1
                                     ctx.skippedfiles += 1
                                     enableFOp = False
-                            else:
-                                print('overwriting')
                             # else:
-                            # env.FEXIST_OVERWRITE - перезаписываем
+                            # self.env.FEXIST_OVERWRITE - перезаписываем
 
                         #
                         # а теперь уже пытаемся скопировать или переместить
@@ -996,8 +1012,7 @@ def main(args):
     try:
         MainWnd(env).main()
     finally:
-        print('Внимание! Сохранение настроек НЕ ДОДЕЛАНО и не производится', file=sys.stderr)
-        #env.save()
+        env.save()
 
     return 0
 

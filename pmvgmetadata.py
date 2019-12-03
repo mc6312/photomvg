@@ -47,7 +47,7 @@ class FileTypes():
         IMAGE: {'.tif', '.tiff', '.jpg', '.jpeg', '.png'},
         # и видео, какое удалось вспомнить
         VIDEO: {'.mov', '.avi', '.mpg', '.vob', '.ts',
-            '.mp4', '.m4v', '.mkv'}
+            '.mp4', '.m4v', '.mkv', '.mts'}
         }
 
     def __init__(self):
