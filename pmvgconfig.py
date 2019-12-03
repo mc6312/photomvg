@@ -25,6 +25,7 @@ from collections import namedtuple
 import shutil
 import subprocess
 import datetime
+from fnmatch import fnmatch
 
 
 from pmvgcommon import *
@@ -88,7 +89,7 @@ def __get_os_parameters():
     return (cfgDir, shellCmd)
 
 
-__cfg_dir, __shell_cmd = __get_os_parameters()
+userConfigDirectory, __shell_cmd = __get_os_parameters()
 
 
 def shell_open(fpath):
@@ -439,34 +440,69 @@ class Environment():
         if not os.path.exists(cfgpath):
             # если нету - лезем в ОС-специфический каталог (см. __get_os_parameters)
 
-            cfgdir = __cfg_dir
-            if not os.path.exists(cfgdir):
-                make_dirs(cfgdir, self.Error)
+            if not os.path.exists(userConfigDirectory):
+                make_dirs(userConfigDirectory, self.Error)
 
-            cfgpath = os.path.join(cfgdir, self.CFG_FILE)
+            cfgpath = os.path.join(userConfigDirectory, self.CFG_FILE)
             # ...а проверку на существование файла будем делать уже при попытке загрузки...
 
         return cfgpath
+
+    def __save_config_aliases(self):
+        self.__cfg_clear_section(self.SEC_ALIASES)
+
+        for aname in sorted(self.aliases):
+            self.cfg.set(self.SEC_ALIASES, aname, self.aliases[aname])
+
+    def __save_config_templates(self):
+        self.__cfg_clear_section(self.SEC_TEMPLATES)
+
+        for tplname in sorted(self.templates):
+            tpl = self.templates[tplname]
+
+            self.cfg.set(self.SEC_TEMPLATES, tplname, str(tpl))
+
+    def __cfg_clear_section(self, secname):
+        # потому как ConfigParser не умеет просто очистить секцию, зараза...
+        self.cfg.remove_section(secname)
+        self.cfg.add_section(secname)
 
     def save(self):
         """Сохранение настроек.
         В случае ошибки генерирует исключение."""
 
         # секция paths
-        for ixsd, (srcdir, sduse) in enumerate(self.sourceDirs, 1):
-            self.cfg.set(self.SEC_SRC_DIRS, str(ixsd), '%s, %s' % (sduse, srcdir))
+        self.__cfg_clear_section(self.SEC_SRC_DIRS)
+        for ixsd, srcdir in enumerate(self.sourceDirs, 1):
+            self.cfg.set(self.SEC_SRC_DIRS, str(ixsd), '%s, %s' % (srcdir.use, srcdir.path))
 
         # секция options
+        if not self.cfg.has_section(self.SEC_OPTIONS):
+            self.cfg.add_section(self.SEC_OPTIONS)
+
+        self.cfg.set(self.SEC_OPTIONS, self.OPT_MOVE_FILES, str(self.modeMoveFiles))
         self.cfg.set(self.SEC_OPTIONS, self.OPT_DEST_DIR, self.destinationDir)
         self.cfg.set(self.SEC_OPTIONS, self.OPT_IF_EXISTS, self.FEXISTS_OPTIONS_STR[self.ifFileExists])
         self.cfg.set(self.SEC_OPTIONS, self.OPT_CLOSE_IF_SUCCESS, str(self.closeIfSuccess))
 
-        # секции aliases и templates ПОКА не трогаем, т.к. для их настроек ещё гуЯ нету
-        print('%s.save(): aliases/templates saving not yet implemented!' % self.__class__.__name__, file=sys.stderr)
+        # секции aliases и templates
+        self.__save_config_aliases()
+        self.__save_config_templates()
 
-        # сохраняем
-        with open(self.configPath, 'w+', encoding=ENCODING) as f:
+        # сохраняем "безопасным" способом
+        cfgtmp = '%s.tmp' % self.configPath
+
+        with open(cfgtmp, 'w+', encoding=ENCODING) as f:
             self.cfg.write(f)
+
+        if os.path.exists(self.configPath):
+            cfgold = '%s.old' % self.configPath
+            if os.path.exists(cfgold):
+                os.remove(cfgold)
+
+            os.rename(self.configPath, cfgold)
+
+        os.rename(cfgtmp, self.configPath)
 
     def get_template(self, cameraModel):
         """Получение экземпляра pmvtemplates.FileNameTemplate для
@@ -482,8 +518,15 @@ class Environment():
         if cameraModel:
             cameraModel = cameraModel.lower()
 
-            if cameraModel in self.templates:
-                return self.templates[cameraModel]
+            # ключ в словаре шаблонов может содержать символы подстановки,
+            # а потому проверяем ключи вручную!
+            for tplCameraModel in self.templates:
+                if tplCameraModel == self.DEFAULT_TEMPLATE_NAME:
+                    # ибо self.DEFAULT_TEMPLATE_NAME = "*", а у нас тут fnmatch
+                    continue
+
+                if fnmatch(cameraModel, tplCameraModel):
+                    return self.templates[tplCameraModel]
 
         return self.templates[self.DEFAULT_TEMPLATE_NAME]
 
@@ -499,16 +542,16 @@ class Environment():
 
     def __repr__(self):
         """Для отладки"""
-        return '''%s(cfg = %s
-modeMoveFiles = %s
-closeIfSuccess = %s
-sourceDirs = %s
-destinationDir = "%s"
-ifFileExists = %s
-knownFileTypes:%s
-aliases = %s
-templates = %s)''' % (self.__class__.__name__,
-    self.cfg,
+        return '''%s(configPath = "%s"
+  modeMoveFiles = %s
+  closeIfSuccess = %s
+  sourceDirs = %s
+  destinationDir = "%s"
+  ifFileExists = %s
+  knownFileTypes:%s
+  aliases = %s
+  templates = %s)''' % (self.__class__.__name__,
+    self.configPath,
     self.modeMoveFiles,
     self.closeIfSuccess,
     str(self.sourceDirs),
@@ -526,17 +569,15 @@ if __name__ == '__main__':
         env = Environment(sys.argv)
         if env.error:
             raise Environment.Error(env.error)
-        #env.save()
 
     except Environment.Error as ex:
         print('** %s' % str(ex))
         exit(1)
 
-    print(env.configPath)
-    print(env)
-    #tpl = env.get_template('')
-    #print('template:', tpl, repr(tpl))
+    #print(env)
+    tpl = env.get_template('canon eos 5d')
+    print('template:', tpl, repr(tpl))
 
     #env.save()
 
-    print(env.knownFileTypes.get_file_type_by_name('filename.m4v'))
+    #print(env.knownFileTypes.get_file_type_by_name('filename.m4v'))

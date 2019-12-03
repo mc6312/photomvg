@@ -56,12 +56,12 @@
       </object>
     </child>
     <child>
-      <object class="GtkCheckMenuItem" id="mnuMainCloseIfSuccess">
+      <object class="GtkMenuItem" id="mnuMainSettings">
         <property name="visible">True</property>
         <property name="can_focus">False</property>
-        <property name="label" translatable="yes">Закрывать программу при успешном выполнении</property>
+        <property name="label" translatable="yes">Настройки</property>
         <property name="use_underline">True</property>
-        <signal name="toggled" handler="mnu_close_if_cuccess_toggled" swapped="no"/>
+        <signal name="activate" handler="mnu_main_settings" swapped="no"/>
       </object>
     </child>
     <child>

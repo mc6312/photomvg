@@ -33,6 +33,7 @@ from pmvgcommon import *
 from pmvgconfig import *
 from pmvgmetadata import *
 from pmvgtemplates import *
+from pmvgsettings import SettingsDialog
 
 
 class MainWnd():
@@ -117,9 +118,6 @@ class MainWnd():
 
         uibldr.get_object('imgMainMenu').set_from_pixbuf(
             resldr.load_pixbuf_icon_size('images/menu.svg', Gtk.IconSize.MENU))
-
-        self.mnuMainCloseIfSuccess = uibldr.get_object('mnuMainCloseIfSuccess')
-        self.mnuMainCloseIfSuccess.set_active(env.closeIfSuccess)
 
         #
         sizeIcon = Gtk.IconSize.MENU
@@ -241,14 +239,19 @@ class MainWnd():
             'image-x-generic'))
 
         #
+        # настройки
+        #
+        self.dlgSettings = SettingsDialog(self.wndMain, self.env)
+
+        #
         self.pages.set_current_page(self.PAGE_START)
 
         uibldr.connect_signals(self)
 
         self.wndMain.show_all()
 
-    def mnu_close_if_cuccess_toggled(self, mnuitem):
-        self.env.closeIfSuccess = mnuitem.get_active()
+    def mnu_main_settings(self, mnuitem):
+        self.dlgSettings.run()
 
     def file_open_shell(self, menuitem):
         itr = self.filetree.get_selected_iter()
