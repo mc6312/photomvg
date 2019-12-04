@@ -249,26 +249,26 @@ class MainWnd():
 
         #
         self.pages.set_current_page(self.PAGE_START)
-        self.setup_page0_widgets()
+        self.setup_sensitive_widgets(self.PAGE_START)
 
         uibldr.connect_signals(self)
 
         self.wndMain.show_all()
 
-    def setup_page0_widgets(self):
-        set_widgets_sensitive(self.page0widgets,
-            self.pages.get_current_page() == 0)
+    def setup_sensitive_widgets(self, pagenum):
+        # пока - так
+        set_widgets_sensitive(self.page0widgets, pagenum == self.PAGE_START)
 
     def pages_switch_page(self, nb, page, pnum):
-        self.setup_page0_widgets()
+        self.setup_sensitive_widgets(pnum)
 
     def mnu_main_settings(self, mnuitem):
         self.dlgSettings.run()
 
     def file_open_shell(self, menuitem):
-        itr = self.filetree.get_selected_iter()
+        itr = self.srcdirlist.get_selected_iter()
         if itr:
-            shell_open(self.filetree_get_full_src_path_from_itr(itr))
+            shell_open(self.srcdirlist.store.get_value(itr, self.SDCOL_DIRNAME))
 
     def filetree_check_node(self, curitr, checkChildren):
         """Проверка элементов Gtk.TreeStore на повтор имён файлов.
