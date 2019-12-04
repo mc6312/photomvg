@@ -2,9 +2,35 @@
 <!-- Generated with glade 3.22.1 -->
 <interface>
   <requires lib="gtk+" version="3.20"/>
-  <object class="GtkListStore" id="aliasesstore"/>
-  <object class="GtkListStore" id="templatesstore"/>
+  <object class="GtkListStore" id="aliasesstore">
+    <columns>
+      <!-- column-name cameramodel -->
+      <column type="gchararray"/>
+      <!-- column-name alias -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkListStore" id="templatefieldlist">
+    <columns>
+      <!-- column-name field -->
+      <column type="gchararray"/>
+      <!-- column-name description -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkListStore" id="templatesstore">
+    <columns>
+      <!-- column-name tplname -->
+      <column type="gchararray"/>
+      <!-- column-name tpldisplay -->
+      <column type="gchararray"/>
+      <!-- column-name template -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
   <object class="GtkDialog" id="dlgSettings">
+    <property name="width_request">512</property>
+    <property name="height_request">480</property>
     <property name="can_focus">False</property>
     <property name="title" translatable="yes">Настройки</property>
     <property name="window_position">center-on-parent</property>
@@ -17,19 +43,34 @@
       <object class="GtkBox">
         <property name="can_focus">False</property>
         <property name="orientation">vertical</property>
-        <property name="spacing">2</property>
+        <property name="spacing">4</property>
         <child internal-child="action_area">
           <object class="GtkButtonBox">
             <property name="can_focus">False</property>
             <property name="layout_style">end</property>
             <child>
+              <object class="GtkButton" id="btnCancel">
+                <property name="label">gtk-cancel</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="use_stock">True</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
               <object class="GtkButton" id="btnOk">
-                <property name="label" translatable="yes">ОК</property>
+                <property name="label">gtk-ok</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="can_default">True</property>
                 <property name="has_default">True</property>
                 <property name="receives_default">True</property>
+                <property name="use_stock">True</property>
               </object>
               <packing>
                 <property name="expand">True</property>
@@ -72,11 +113,13 @@
                         <property name="show_arrow">False</property>
                         <property name="icon_size">2</property>
                         <child>
-                          <object class="GtkToolButton">
+                          <object class="GtkToolButton" id="btnTemplateAdd">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="tooltip_text" translatable="yes">Создать новый шаблон</property>
                             <property name="use_underline">True</property>
                             <property name="stock_id">gtk-add</property>
+                            <signal name="clicked" handler="templates_new" swapped="no"/>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -84,11 +127,13 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkToolButton">
+                          <object class="GtkToolButton" id="btnTemplateEdit">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="tooltip_text" translatable="yes">Изменить шаблон</property>
                             <property name="use_underline">True</property>
                             <property name="stock_id">gtk-edit</property>
+                            <signal name="clicked" handler="templates_edit" swapped="no"/>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -96,11 +141,13 @@
                           </packing>
                         </child>
                         <child>
-                          <object class="GtkToolButton">
+                          <object class="GtkToolButton" id="btnTemplateDelete">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
+                            <property name="tooltip_text" translatable="yes">Удалить шаблон</property>
                             <property name="use_underline">True</property>
                             <property name="stock_id">gtk-remove</property>
+                            <signal name="clicked" handler="templates_delete" swapped="no"/>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -125,8 +172,42 @@
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="model">templatesstore</property>
+                            <property name="search_column">0</property>
+                            <property name="show_expanders">False</property>
+                            <property name="enable_grid_lines">both</property>
+                            <signal name="row-activated" handler="templatelist_row_activated" swapped="no"/>
                             <child internal-child="selection">
                               <object class="GtkTreeSelection"/>
+                            </child>
+                            <child>
+                              <object class="GtkTreeViewColumn" id="colTplName">
+                                <property name="sizing">autosize</property>
+                                <property name="title" translatable="yes">Маска шаблона</property>
+                                <property name="expand">True</property>
+                                <child>
+                                  <object class="GtkCellRendererText" id="crTplName">
+                                    <property name="ellipsize">middle</property>
+                                  </object>
+                                  <attributes>
+                                    <attribute name="text">0</attribute>
+                                  </attributes>
+                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkTreeViewColumn" id="colTplDisplay">
+                                <property name="sizing">autosize</property>
+                                <property name="title" translatable="yes">Шаблон</property>
+                                <property name="expand">True</property>
+                                <child>
+                                  <object class="GtkCellRendererText" id="crTplDisplay">
+                                    <property name="ellipsize">middle</property>
+                                  </object>
+                                  <attributes>
+                                    <attribute name="text">1</attribute>
+                                  </attributes>
+                                </child>
+                              </object>
                             </child>
                           </object>
                         </child>
@@ -179,6 +260,7 @@
                             <property name="can_focus">False</property>
                             <property name="use_underline">True</property>
                             <property name="stock_id">gtk-add</property>
+                            <signal name="clicked" handler="aliases_new" swapped="no"/>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -191,6 +273,7 @@
                             <property name="can_focus">False</property>
                             <property name="use_underline">True</property>
                             <property name="stock_id">gtk-edit</property>
+                            <signal name="clicked" handler="aliases_edit" swapped="no"/>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -203,6 +286,7 @@
                             <property name="can_focus">False</property>
                             <property name="use_underline">True</property>
                             <property name="stock_id">gtk-remove</property>
+                            <signal name="clicked" handler="aliases_delete" swapped="no"/>
                           </object>
                           <packing>
                             <property name="expand">False</property>
@@ -227,8 +311,42 @@
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
                             <property name="model">aliasesstore</property>
+                            <property name="search_column">0</property>
+                            <property name="show_expanders">False</property>
+                            <property name="enable_grid_lines">both</property>
+                            <signal name="row-activated" handler="aliaslist_row_activated" swapped="no"/>
                             <child internal-child="selection">
                               <object class="GtkTreeSelection"/>
+                            </child>
+                            <child>
+                              <object class="GtkTreeViewColumn" id="colCamModel">
+                                <property name="sizing">autosize</property>
+                                <property name="title" translatable="yes">Модель камеры</property>
+                                <property name="expand">True</property>
+                                <child>
+                                  <object class="GtkCellRendererText" id="crCamModel">
+                                    <property name="ellipsize">middle</property>
+                                  </object>
+                                  <attributes>
+                                    <attribute name="text">0</attribute>
+                                  </attributes>
+                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkTreeViewColumn" id="colCamAlias">
+                                <property name="sizing">autosize</property>
+                                <property name="title" translatable="yes">Сокращение</property>
+                                <property name="expand">True</property>
+                                <child>
+                                  <object class="GtkCellRendererText" id="crCamAlias">
+                                    <property name="ellipsize">middle</property>
+                                  </object>
+                                  <attributes>
+                                    <attribute name="text">1</attribute>
+                                  </attributes>
+                                </child>
+                              </object>
                             </child>
                           </object>
                         </child>
@@ -245,7 +363,7 @@
                   <object class="GtkLabel">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="label" translatable="yes">Подстановки</property>
+                    <property name="label" translatable="yes">Сокращения названий моделей камер</property>
                   </object>
                 </child>
               </object>
@@ -269,16 +387,34 @@
                     <property name="orientation">vertical</property>
                     <property name="spacing">4</property>
                     <child>
-                      <object class="GtkCheckButton" id="cbtnCloseIfSuccess">
-                        <property name="label" translatable="yes">Закрывать программу при успешном завершении работы</property>
+                      <object class="GtkBox">
                         <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="receives_default">False</property>
-                        <property name="draw_indicator">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="spacing">4</property>
+                        <child>
+                          <object class="GtkCheckButton" id="cbtnCloseIfSuccess">
+                            <property name="label" translatable="yes">Закрывать программу при успешном завершении работы</property>
+                            <property name="visible">True</property>
+                            <property name="can_focus">True</property>
+                            <property name="receives_default">False</property>
+                            <property name="draw_indicator">True</property>
+                          </object>
+                          <packing>
+                            <property name="expand">False</property>
+                            <property name="fill">True</property>
+                            <property name="position">0</property>
+                          </packing>
+                        </child>
+                        <child>
+                          <placeholder/>
+                        </child>
+                        <child>
+                          <placeholder/>
+                        </child>
                       </object>
                       <packing>
                         <property name="expand">False</property>
-                        <property name="fill">True</property>
+                        <property name="fill">False</property>
                         <property name="position">0</property>
                       </packing>
                     </child>
@@ -308,7 +444,394 @@
       </object>
     </child>
     <action-widgets>
+      <action-widget response="-6">btnCancel</action-widget>
       <action-widget response="-5">btnOk</action-widget>
+    </action-widgets>
+  </object>
+  <object class="GtkDialog" id="dlgAlias">
+    <property name="width_request">480</property>
+    <property name="can_focus">False</property>
+    <property name="modal">True</property>
+    <property name="window_position">center-on-parent</property>
+    <property name="destroy_with_parent">True</property>
+    <property name="type_hint">dialog</property>
+    <property name="skip_taskbar_hint">True</property>
+    <property name="skip_pager_hint">True</property>
+    <property name="transient_for">dlgSettings</property>
+    <child>
+      <placeholder/>
+    </child>
+    <child internal-child="vbox">
+      <object class="GtkBox">
+        <property name="can_focus">False</property>
+        <property name="orientation">vertical</property>
+        <property name="spacing">4</property>
+        <child internal-child="action_area">
+          <object class="GtkButtonBox">
+            <property name="can_focus">False</property>
+            <property name="layout_style">end</property>
+            <child>
+              <object class="GtkButton" id="btnACancel">
+                <property name="label">gtk-cancel</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="use_stock">True</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="btnAOk">
+                <property name="label">gtk-ok</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="can_default">True</property>
+                <property name="has_default">True</property>
+                <property name="receives_default">True</property>
+                <property name="use_stock">True</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">False</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkGrid">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="row_spacing">4</property>
+            <property name="column_spacing">4</property>
+            <child>
+              <object class="GtkSeparator">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">2</property>
+                <property name="width">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="label" translatable="yes">Модель камеры (из EXIF):</property>
+                <property name="xalign">0</property>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="cameramodelentry">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="hexpand">True</property>
+                <property name="max_length">64</property>
+                <property name="activates_default">True</property>
+                <property name="width_chars">64</property>
+                <property name="max_width_chars">64</property>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="label" translatable="yes">Сокращение:</property>
+                <property name="xalign">0</property>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkBox">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="spacing">4</property>
+                <child>
+                  <object class="GtkEntry" id="aliasentry">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="hexpand">True</property>
+                    <property name="max_length">16</property>
+                    <property name="activates_default">True</property>
+                    <property name="width_chars">16</property>
+                    <property name="max_width_chars">16</property>
+                  </object>
+                  <packing>
+                    <property name="expand">False</property>
+                    <property name="fill">True</property>
+                    <property name="position">0</property>
+                  </packing>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+                <child>
+                  <placeholder/>
+                </child>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">1</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">True</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+    <action-widgets>
+      <action-widget response="-6">btnACancel</action-widget>
+      <action-widget response="-5">btnAOk</action-widget>
+    </action-widgets>
+  </object>
+  <object class="GtkDialog" id="dlgTemplate">
+    <property name="width_request">480</property>
+    <property name="height_request">384</property>
+    <property name="can_focus">False</property>
+    <property name="title" translatable="yes">Шаблон</property>
+    <property name="modal">True</property>
+    <property name="window_position">center-on-parent</property>
+    <property name="destroy_with_parent">True</property>
+    <property name="type_hint">dialog</property>
+    <property name="skip_taskbar_hint">True</property>
+    <property name="skip_pager_hint">True</property>
+    <property name="transient_for">dlgSettings</property>
+    <child>
+      <placeholder/>
+    </child>
+    <child internal-child="vbox">
+      <object class="GtkBox">
+        <property name="can_focus">False</property>
+        <property name="orientation">vertical</property>
+        <property name="spacing">4</property>
+        <child internal-child="action_area">
+          <object class="GtkButtonBox">
+            <property name="can_focus">False</property>
+            <property name="layout_style">end</property>
+            <child>
+              <object class="GtkButton" id="btnTplCancel">
+                <property name="label">gtk-cancel</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">False</property>
+                <property name="use_stock">True</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="btnTplOk">
+                <property name="label">gtk-ok</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="can_default">True</property>
+                <property name="has_default">True</property>
+                <property name="receives_default">True</property>
+                <property name="use_stock">True</property>
+              </object>
+              <packing>
+                <property name="expand">True</property>
+                <property name="fill">True</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">False</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkGrid">
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="row_spacing">4</property>
+            <property name="column_spacing">4</property>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="label" translatable="yes">Маска шаблона:</property>
+                <property name="xalign">0</property>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="tplmaskentry">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="hexpand">True</property>
+                <property name="max_length">64</property>
+                <property name="activates_default">True</property>
+                <property name="max_width_chars">64</property>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">0</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="txtTemplateHelp">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="wrap">True</property>
+                <property name="wrap_mode">word-char</property>
+                <property name="xalign">0</property>
+                <property name="yalign">0</property>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">3</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="label" translatable="yes">Шаблон:</property>
+                <property name="xalign">0</property>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="templateentry">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="hexpand">True</property>
+                <property name="activates_default">True</property>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">2</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="txtTemplateMaskHelp">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="wrap">True</property>
+                <property name="wrap_mode">word-char</property>
+                <property name="xalign">0</property>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkScrolledWindow">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="hexpand">True</property>
+                <property name="vexpand">True</property>
+                <property name="shadow_type">in</property>
+                <child>
+                  <object class="GtkTreeView" id="templatefields">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="model">templatefieldlist</property>
+                    <signal name="row-activated" handler="templatefields_row_activated" swapped="no"/>
+                    <child internal-child="selection">
+                      <object class="GtkTreeSelection"/>
+                    </child>
+                    <child>
+                      <object class="GtkTreeViewColumn" id="colFPName">
+                        <property name="title" translatable="yes">Макрос</property>
+                        <child>
+                          <object class="GtkCellRendererText" id="crFPName"/>
+                          <attributes>
+                            <attribute name="text">0</attribute>
+                          </attributes>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkTreeViewColumn" id="colFPDesc">
+                        <property name="title" translatable="yes">Описание</property>
+                        <child>
+                          <object class="GtkCellRendererText" id="crFPDesc"/>
+                          <attributes>
+                            <attribute name="text">1</attribute>
+                          </attributes>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="left_attach">1</property>
+                <property name="top_attach">4</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkSeparator">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="left_attach">0</property>
+                <property name="top_attach">5</property>
+                <property name="width">2</property>
+              </packing>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+            <child>
+              <placeholder/>
+            </child>
+          </object>
+          <packing>
+            <property name="expand">True</property>
+            <property name="fill">True</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+    <action-widgets>
+      <action-widget response="-6">btnTplCancel</action-widget>
+      <action-widget response="-5">btnTplOk</action-widget>
     </action-widgets>
   </object>
 </interface>

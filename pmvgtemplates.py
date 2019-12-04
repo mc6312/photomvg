@@ -19,7 +19,10 @@
 
 
 from pmvgmetadata import FileMetadata, FileTypes
+from pmvgcommon import *
+
 import os.path
+from collections import namedtuple
 
 
 class FileNameTemplate():
@@ -30,30 +33,47 @@ class FileNameTemplate():
     MODEL, ALIAS, PREFIX, NUMBER, FILETYPE, LONGFILETYPE, \
     FILENAME = range(13)
 
-    # отображение полей экземпляра FileMetadata в поля FileNameTemplate
+    fldparm = namedtuple('fldparm', 'shortname longname dispname description')
+
+    # параметры полей шаблонов; индекс в списке соответствует константам выше
+    # элементы списка - экземпляры fldparm:
+    # (короткое имя, длинное имя, строка для отображения в UI, описание для UI)
+
+    FIELDS = (
+        # YEAR - год (в виде четырёхзначного числа)
+        fldparm('y',  'year', 'ГГГГ', 'год (четыре цифры)'),
+        # MONTH - месяц (в виде двухзначного числа, день и т.п. - тоже)
+        fldparm('mon', 'month', 'ММ', 'месяц (две цифры)'),
+        # DAY - день
+        fldparm('d', 'day', 'ДД', 'день (две цифры)'),
+        # HOUR - час
+        fldparm('h', 'hour', 'ЧЧ', 'час (две цифры)'),
+        # MINUTE - минута
+        fldparm('m', 'minute', 'ММ', 'минута (две цифры)'),
+        # SECOND - секунда
+        fldparm('s', 'second', 'СС', 'секунда (две цифры)'),
+        # MODEL - модель камеры
+        fldparm('o', 'model', 'МОДЕЛЬ', 'модель камеры (полностью)'),
+        # ALIAS - сокращенное название модели (если есть в Environment.aliases)
+        fldparm('a', 'alias', 'МСОКР', 'модель камеры (сокращённо)'),
+        # PREFIX - префикс из оригинального имени файла
+        fldparm('p', 'prefix', 'ПРЕФИКС', 'префикс исходного имени файла'),
+        # NUMBER - номер снимка из оригинального имени файла или EXIF
+        fldparm('n', 'number', 'НОМЕР', 'номер из исходного имени файла'),
+        # FILETYPE - тип файла, односимвольный вариант
+        fldparm('t', 'type', 'Т', 'тип файла (одним символом)'),
+        # LONGFILETYPE - тип файла, длинный вариант
+        fldparm('l', 'longtype', 'ТИПФАЙЛА', 'тип файла (полностью)'),
+        # FILENAME - оригинальное имя файла (без расширения)
+        fldparm('f', 'filename', 'ИМЯФАЙЛА', 'исходное имя файла (без расширения)'),
+        )
+
+    # маппинг полей экземпляра FileMetadata в поля FileNameTemplate
     # для полей FileNameTemplate.ALIAS, .FILETYPE и .FILENAME - будет спец. обработка
     __METADATA_FIELDS = {YEAR:FileMetadata.YEAR, MONTH:FileMetadata.MONTH,
         DAY:FileMetadata.DAY, HOUR:FileMetadata.HOUR, MINUTE:FileMetadata.MINUTE, SECOND:FileMetadata.SECOND,
         MODEL:FileMetadata.MODEL,
         PREFIX:FileMetadata.PREFIX, NUMBER:FileMetadata.NUMBER}
-
-    FLD_NAMES = {'y':YEAR, 'year':YEAR,     # год (в виде четырёхзначного числа)
-        'mon':MONTH, 'month':MONTH,         # месяц - двухзначный, день и т.п. - тоже
-        'd':DAY, 'day':DAY,                 # день
-        'h':HOUR, 'hour':HOUR,              # час
-        'm':MINUTE, 'minute':MINUTE,        # минута
-        's':SECOND, 'second':SECOND,        # секунда
-        'model':MODEL,                      # модель камеры
-        'a':ALIAS, 'alias':ALIAS,           # сокращенное название модели (если есть в Environment.aliases)
-        'p':PREFIX, 'prefix':PREFIX,        # префикс из оригинального имени файла
-        'n':NUMBER, 'number':NUMBER,        # номер снимка из оригинального имени файла или EXIF
-        't':FILETYPE, 'type':FILETYPE,      # тип файла, односимвольный вариант
-        'l':LONGFILETYPE, 'longtype':LONGFILETYPE, # тип файла, длинный вариант
-        'f':FILENAME, 'filename':FILENAME}  # оригинальное имя файла (без расширения)
-
-    __FLD_STRS = ('year', 'month', 'day', 'hour', 'minute', 'second',
-        'model', 'alias', 'prefix', 'number', 'filetype', 'longfiletype',
-        'filename')
 
     class Error(Exception):
         pass
@@ -74,8 +94,12 @@ class FileNameTemplate():
 
         tplix = 0
 
-        # принудительная чистка
-        while tplix < tplend and tplstr[tplix] in '/\\': tplix += 1
+        # принудительная чистка: строка не должна начинаться с разделителя каталогов
+        while tplix < tplend and tplstr[tplix] == os.path.sep: tplix += 1
+
+        # ...а также начинаться и заканчиваться точками
+        if tplstr.startswith('.') or tplstr.endswith('.'):
+            raise self.Error('текст шаблона не должен начинаться с точки и/или заканчиваться точкой')
 
         if tplix > tplend:
             raise self.Error(self.ERROR % (tplix, 'пустой шаблон'))
@@ -94,14 +118,26 @@ class FileNameTemplate():
 
                 tword = tword.lower()
 
-                if tword not in self.FLD_NAMES:
+                fldixfound = -1
+                for fldix, fparm in enumerate(self.FIELDS):
+                    if tword == fparm.shortname or tword == fparm.longname:
+                        fldixfound = fldix
+                        break
+
+                if fldixfound < 0:
                     raise self.Error(self.ERROR % (tplix, 'недопустимое имя макроса - "%s"' % tword))
                 else:
                     # добавляем макрос
-                    self.fields.append(self.FLD_NAMES[tword])
+                    self.fields.append(fldixfound)
             else:
-                # добавляем простой текст
+                # добавляем простой текст, проверяя его на недопустимые в имени файла символы
+                # разделитель каталогов - допустим, он позволяет с помощью шаблонов создавать подкаталоги
+
                 if tword:
+                    badchars = ''.join(filter(lambda c: c in INVALID_TEMPLATE_CHARS, tword))
+                    if badchars:
+                        raise self.Error(self.ERROR % (tplix, 'текст шаблона "%s" содержит недопустимые символы "%s"' % (tword, badchars)))
+
                     self.fields.append(tword)
 
         while tplix <= tplend:
@@ -195,15 +231,22 @@ class FileNameTemplate():
         rawpath = os.path.split(''.join(r))
         return (*rawpath, metadata.fileExt)
 
-    def __str__(self):
-        """Преобразование внутреннего представления в строку (в т.ч. для GUI)"""
+    def get_display_str(self):
+        """Преобразование внутреннего представления в строку для
+        отображения в UI."""
 
-        return ''.join(map(lambda f: f if isinstance(f, str) else '{%s}' % self.__FLD_STRS[f], self.fields))
+        return ''.join(map(lambda f: f if isinstance(f, str) else self.FIELDS[f].dispname, self.fields))
+
+    def __str__(self):
+        """Преобразование внутреннего представления в строку,
+        пригодную для разбора (при создании нового экземпляра FileNameTemplate)."""
+
+        return ''.join(map(lambda f: f if isinstance(f, str) else '{%s}' % self.FIELDS[f].longname, self.fields))
 
     def __repr__(self):
         """Для отладки"""
 
-        return '%s(%s)' % (self.__class__.__name__, str(self))
+        return '%s("%s")' % (self.__class__.__name__, str(self))
 
 
 defaultFileNameTemplate = FileNameTemplate('{filename}')
@@ -216,7 +259,6 @@ if __name__ == '__main__':
     from pmvgconfig import Environment
     env = Environment(sys.argv)
 
-    template = FileNameTemplate('{year}/{month}/{day}/{longtype}/{type}{year}{month}{day}_{ hour}{M}{s}_{n}')
 
     for root, dirs, files in os.walk(os.path.expanduser('~/downloads/src')):
         for fname in files:
@@ -224,10 +266,10 @@ if __name__ == '__main__':
 
             try:
                 metadata = FileMetadata(fpath, env.knownFileTypes)
-
+                template = env.get_template_from_metadata(metadata)
                 d, n, e = template.get_new_file_name(env, metadata)
                 s = os.path.join(d, n+e)
-            except Exception:
-                s = 'invalid file or unsupported metadata format'
+            except Exception as ex:
+                s = f'invalid file or unsupported metadata format ({ex})'
 
             print(f'{fname} -> {s}')

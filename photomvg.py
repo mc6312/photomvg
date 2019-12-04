@@ -119,6 +119,9 @@ class MainWnd():
         uibldr.get_object('imgMainMenu').set_from_pixbuf(
             resldr.load_pixbuf_icon_size('images/menu.svg', Gtk.IconSize.MENU))
 
+        # элементы меню и др., которые д.б. доступны только при активной первой странице
+        self.page0widgets = get_ui_widgets(uibldr, ('mnuMainSettings', 'mnuFileOpen'))
+
         #
         sizeIcon = Gtk.IconSize.MENU
         sizeIconPx = Gtk.IconSize.lookup(sizeIcon)[1]
@@ -176,6 +179,7 @@ class MainWnd():
         # PAGE_DESTFNAMES, дерево новых каталогов/файлов
         #
         self.filetree = TreeViewShell.new_from_uibuilder(uibldr, 'filetreeview')
+        self.filetree.sortColumn = self.FTCOL_FNAME
 
         # каталоги, в которых найсены файлы подходящих типов,
         # дабы не держать полные исходные пути в элементах дерева - память не резиновая
@@ -245,10 +249,18 @@ class MainWnd():
 
         #
         self.pages.set_current_page(self.PAGE_START)
+        self.setup_page0_widgets()
 
         uibldr.connect_signals(self)
 
         self.wndMain.show_all()
+
+    def setup_page0_widgets(self):
+        set_widgets_sensitive(self.page0widgets,
+            self.pages.get_current_page() == 0)
+
+    def pages_switch_page(self, nb, page, pnum):
+        self.setup_page0_widgets()
 
     def mnu_main_settings(self, mnuitem):
         self.dlgSettings.run()
@@ -388,20 +400,13 @@ class MainWnd():
                 # хотя мог бы и просто None возвращать...
                 return
 
-            self.filetree_select_iter(itr)
+            self.filetree.select_iter(itr)
             self.filetree_check_node(itr)
 
         # разрешаем взад сортировку treestore
-        self.filetree_enable_sorting(True)
+        self.filetree.enable_sorting(True)
 
-    def filetree_enable_sorting(self, enable):
-        """Разрешение/запрет сортировки treestore."""
-
-        self.filetree.store.set_sort_column_id(
-            self.FTCOL_FNAME if enable else Gtk.TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID,
-            Gtk.SortType.ASCENDING)
-
-    def __scan_dir_to_filetree(self, fromdirname, toiter, progress):
+    def __filetree_scan_dir_to(self, fromdirname, toiter, progress):
         """Рекурсивный обход каталога с заполнением дерева filetree.store.
         fromdirname - путь к каталогу,
         toiter      - экземпляр Gtk.TreeIter, указывающий на позицию в filetree.store,
@@ -517,10 +522,8 @@ class MainWnd():
 
         self.job_begin('Поиск файлов...', self.PAGE_DESTFNAMES)
 
-        self.filetree.view.set_model(None)
+        self.filetree.refresh_begin()
 
-        self.filetree_enable_sorting(False)
-        self.filetree.store.clear()
         self.filetree.scannedSrcDirs.clear()
         self.filetree.filesWithDuplicates = 0
         self.filetree.filesTotal = 0
@@ -535,12 +538,11 @@ class MainWnd():
 
                 chkd, dirname = self.srcdirlist.store.get(itr, self.SDCOL_SEL, self.SDCOL_DIRNAME)
                 if chkd:
-                    self.__scan_dir_to_filetree(dirname, None, self.job_progress)
+                    self.__filetree_scan_dir_to(dirname, None, self.job_progress)
 
                 itr = self.srcdirlist.store.iter_next(itr)
         finally:
-            self.filetree_enable_sorting(True)
-            self.filetree.view.set_model(self.filetree.store)
+            self.filetree.refresh_end()
 
             if self.filetree.store.iter_n_children():
                 self.jobEndPage = self.PAGE_DESTFNAMES
@@ -606,7 +608,7 @@ class MainWnd():
             (newinfo, self.icons[newinfo.ftype][False], newinfo.srcfname,
             'Новый каталог. Переименуй его.'))
 
-        self.filetree_select_iter(itr)
+        self.filetree.select_iter(itr)
         self.filetree_check_node(itr)
 
     def filetree_revert_srcname(self, wgt):

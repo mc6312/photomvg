@@ -19,7 +19,7 @@
 
 
 TITLE = 'PhotoMVG'
-VERSION = '0.7'
+VERSION = '0.8'
 TITLE_VERSION = '%s v%s' % (TITLE, VERSION)
 URL = 'http://github.com/mc6312/photomvg'
 COPYRIGHT = '(c) 2019 MC-6312'
@@ -65,7 +65,8 @@ def path_validate(path):
     return os.path.abspath(os.path.expanduser(path))
 
 
-INVALID_FNAME_CHARS = '\/*?:"<>|'
+INVALID_TEMPLATE_CHARS = '\t\n\r*?:"<>|%s' % ('/' if os.path.sep == '\\' else '\\')
+INVALID_FNAME_CHARS = '%s%s' % (INVALID_TEMPLATE_CHARS, os.path.sep)
 
 
 def filename_validate(fname, forceext):
@@ -125,7 +126,11 @@ def same_dir(dir1, dir2):
 if __name__ == '__main__':
     print('[debugging %s]' % __file__)
 
-    #print(filename_validate('/some/filename:text'))
+    for ix, c in enumerate(INVALID_TEMPLATE_CHARS):
+        print(f'{ix}: "{c}"')
+    exit(0)
+
+    print(filename_validate('/some/filename:text', None))
     try:
         raise OSError('test')
     except Exception:

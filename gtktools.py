@@ -346,6 +346,9 @@ class TreeViewShell():
         self.expandSelectedRow = False
         self.expandSelectedAll = False
 
+        self.sortOrder = Gtk.SortType.ASCENDING
+        self.sortColumn = -1
+
     @classmethod
     def new(cls, tv):
         # сей метод - для единообразия
@@ -370,7 +373,7 @@ class TreeViewShell():
             if rows:
                 return self.store.get_iter(rows[0])
 
-    def filetree_select_iter(self, itr):
+    def select_iter(self, itr):
         """Выбирает элемент в дереве, указанный itr (экземпляром
         Gtk.TreeIter), при необходимости заставляет TreeView развернуть
         соответствующий уровень дерева."""
@@ -382,6 +385,28 @@ class TreeViewShell():
 
         self.selection.select_path(path)
         self.view.set_cursor(path, None, False)
+
+    def enable_sorting(self, enable):
+        """Разрешение/запрет сортировки treestore."""
+
+        self.store.set_sort_column_id(
+            self.sortColumn if (enable and self.sortColumn >= 0) else Gtk.TREE_SORTABLE_UNSORTED_SORT_COLUMN_ID,
+            self.sortOrder)
+
+    def refresh_begin(self):
+        """Подготовка экземпляра TreeModel к заполнению данными:
+        очистка, временный запрет сортировки.
+        Вызывать перед полным обновлением."""
+
+        self.view.set_model(None)
+        self.enable_sorting(False)
+        self.store.clear()
+
+    def refresh_end(self):
+        """Завершение заполнения данными."""
+
+        self.enable_sorting(True)
+        self.view.set_model(self.store)
 
 
 if __name__ == '__main__':

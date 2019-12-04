@@ -147,6 +147,7 @@
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="show_border">False</property>
+            <signal name="switch-page" handler="pages_switch_page" swapped="no"/>
             <child>
               <object class="GtkBox" id="vboxsrcdirs">
                 <property name="visible">True</property>

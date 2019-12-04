@@ -201,7 +201,7 @@ class Environment():
         # сокращенные псевдонимы камер
         # ключи словаря - названия камер, соответствующие соотв. полю EXIF
         # значения - строки псевдонимов
-        self.aliases = {}
+        self.aliases = dict()
 
         # индивидуальные шаблоны
         # общий шаблон по умолчанию также будет воткнут сюда при
@@ -209,7 +209,7 @@ class Environment():
         # ключи словаря - названия камер из EXIF, или "*" для общего
         # шаблона;
         # значения словаря - экземпляры класса FileNameTemplate
-        self.templates = {}
+        self.templates = dict()
 
         #
         # см. далее except!
@@ -409,13 +409,6 @@ class Environment():
             except Exception as ex:
                 raise self.Error(self.E_BADVAL % (tname, self.SEC_TEMPLATES, self.configPath, repr(ex)))
 
-        # если в файле настроек не был указан общий шаблон с именем "*",
-        # то добавляем в templates встроенный шаблон pmvtemplates.defaultFileNameTemplate
-        # под именем "*"
-
-        if self.DEFAULT_TEMPLATE_NAME not in self.templates:
-            self.templates[self.DEFAULT_TEMPLATE_NAME] = defaultFileNameTemplate
-
     def __get_log_directory(self):
         """Возвращает полный путь к каталогу файлов журналов операций.
         При отсутствии каталога - создаёт его."""
@@ -515,30 +508,34 @@ class Environment():
                       из файла настроек, если он указан, иначе возвращает
                       встроенный общий шаблон программы."""
 
-        if cameraModel:
-            cameraModel = cameraModel.lower()
+        if self.templates:
+            if cameraModel:
+                cameraModel = cameraModel.lower()
 
-            # ключ в словаре шаблонов может содержать символы подстановки,
-            # а потому проверяем ключи вручную!
-            for tplCameraModel in self.templates:
-                if tplCameraModel == self.DEFAULT_TEMPLATE_NAME:
-                    # ибо self.DEFAULT_TEMPLATE_NAME = "*", а у нас тут fnmatch
-                    continue
+                # ключ в словаре шаблонов может содержать символы подстановки,
+                # а потому проверяем ключи вручную!
+                for tplCameraModel in self.templates:
+                    if tplCameraModel == self.DEFAULT_TEMPLATE_NAME:
+                        # ибо self.DEFAULT_TEMPLATE_NAME = "*", а у нас тут fnmatch
+                        continue
 
-                if fnmatch(cameraModel, tplCameraModel):
-                    return self.templates[tplCameraModel]
+                    if fnmatch(cameraModel, tplCameraModel):
+                        return self.templates[tplCameraModel]
 
-        return self.templates[self.DEFAULT_TEMPLATE_NAME]
+        # шаблон не нашёлся по названию камеры -
+        # пробуем общий из настроек, если он есть
+        if self.DEFAULT_TEMPLATE_NAME in self.templates:
+            return self.templates[self.DEFAULT_TEMPLATE_NAME]
+
+        # а когда совсем ничего нету - встроенный шаблон
+        return defaultFileNameTemplate
 
     def get_template_from_metadata(self, metadata):
         """Получение экземпляра pmvtemplates.FileNameTemplate для
         определённой камеры, модель которой определяется по
         соответствующему полю metadata - экземпляра FileMetadata."""
 
-        if not metadata.fields[metadata.MODEL]:
-            return self.templates[self.DEFAULT_TEMPLATE_NAME]
-        else:
-            return self.get_template(metadata.fields[metadata.MODEL])
+        return self.get_template(metadata.fields[metadata.MODEL])
 
     def __repr__(self):
         """Для отладки"""
