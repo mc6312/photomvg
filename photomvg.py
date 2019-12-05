@@ -36,6 +36,10 @@ from pmvgtemplates import *
 from pmvgsettings import SettingsDialog
 
 
+class JobCancelled(Exception):
+    pass
+
+
 class MainWnd():
     # номера страниц в pages
     PAGE_SRCDIRS, PAGE_PROGRESS, PAGE_DESTFNAMES, PAGE_FINAL = range(4)
@@ -57,6 +61,8 @@ class MainWnd():
 
     # элементы cboxFOp
     CBFOP_COPY, CBFOP_MOVE = range(2)
+
+    JOB_PROGRESS_SKIP = 1000
 
     class FileInfo():
         """Вспомогательный костыль, экземпляр которого кладётся
@@ -147,6 +153,9 @@ class MainWnd():
         for ftype, iconname in self.ICONNAMES:
             self.icons[ftype] = __icon_with_error_overlay(iconname)
 
+        self.iconJobError = load_system_icon('dialog-error', sizeIcon)
+        self.iconJobWarning = load_system_icon('dialog-warning', sizeIcon)
+
         #
         self.pages = uibldr.get_object('pages')
         self.pages.set_show_tabs(False) # в .ui указано True для упрощения правки в Glade
@@ -218,6 +227,12 @@ class MainWnd():
 
         self.jobRunning = False
         self.jobEndPage = 0
+
+        self.jobCtxSkippedFiles = 0
+        self.jobCtxFileIndex = 0.0
+        self.jobCtxProgressSkip = self.JOB_PROGRESS_SKIP
+        self.jobCtxErrors = 0
+        self.jobCtxWarnings = 0
 
         #
         # PAGE_FINAL, страница завершения
@@ -545,6 +560,7 @@ class MainWnd():
             self.filetree.refresh_end()
 
             if self.filetree.store.iter_n_children():
+                self.filetree_check_all()
                 self.jobEndPage = self.PAGE_DESTFNAMES
             else:
                 self.jobEndPage = self.PAGE_FINAL
@@ -773,6 +789,17 @@ class MainWnd():
 
         self.__srcdirlist_select_all(not (self.chkSDirSel.get_active() or self.chkSDirSel.get_inconsistent()))
 
+    def job_next_file(self):
+        self.jobCtxFileIndex += 1.0
+
+    def job_skip_progress(self):
+        if self.jobCtxProgressSkip > 0:
+            self.jobCtxProgressSkip -= 1
+            return False
+        else:
+            self.jobCtxProgressSkip = self.JOB_PROGRESS_SKIP
+            return True
+
     def job_begin(self, title, endpage):
         self.txtProgressOperation.set_text(title)
         self.pbarScanSrcDirs.set_fraction(0.0)
@@ -780,6 +807,12 @@ class MainWnd():
         self.pages.set_current_page(self.PAGE_PROGRESS)
         self.jobEndPage = endpage
         self.jobRunning = True
+
+        self.jobCtxSkippedFiles = 0
+        self.jobCtxFileIndex = 0.0
+        self.jobCtxProgressSkip = self.JOB_PROGRESS_SKIP
+        self.jobCtxErrors = 0
+        self.jobCtxWarnings = 0
 
         self.headerBar.set_sensitive(False)
 
@@ -827,28 +860,6 @@ class MainWnd():
     def fileops_dest_dir_set(self, fcb):
         self.env.destinationDir = fcb.get_current_folder()
 
-    class FileOpContext():
-        __slots__ = 'skippedfiles', 'fileindex', 'skippg', 'errors'
-
-        SKIP_PG = 1000
-
-        def __init__(self):
-            self.skippedfiles = 0
-            self.fileindex = 0.0
-            self.skippg = self.SKIP_PG
-            self.errors = 0
-
-        def next_file(self):
-            self.fileindex += 1.0
-
-        def skip_pg(self):
-            if self.skippg > 0:
-                self.skippg -= 1
-                return False
-            else:
-                self.skippg = self.SKIP_PG
-                return True
-
     def fileops_execute(self):
         """Основная часть работы - копирование или перемещение файлов
         в новые каталоги под новыми именами."""
@@ -871,119 +882,144 @@ class MainWnd():
         fileopFunction = shutil.move if self.env.modeMoveFiles else shutil.copy
         fileopVerb = 'переместить' if self.env.modeMoveFiles else 'скопировать'
 
-        foctx = self.FileOpContext()
-
         self.job_begin(sTitle, self.PAGE_FINAL)
         self.errorlist.view.set_model(None)
         self.errorlist.store.clear()
         try:
-            # здесь создаём каталог(и) назначения и лОжим в них файлы
+            try:
+                # здесь создаём каталог(и) назначения и лОжим в них файлы
 
-            serr = make_dirs(self.env.destinationDir)
-            if serr:
-                self.job_error(markup_escape_text(serr))
-                foctx.errors += 1
+                serr = make_dirs(self.env.destinationDir)
+                if serr:
+                    self.job_message(markup_escape_text(serr))
 
-            # пошли надругаться над файлами
-            def __process_node(fromitr, ctx):
-                itr = self.filetree.store.iter_children(fromitr)
+                # пошли надругаться над файлами
+                def __process_node(fromitr):
+                    itr = self.filetree.store.iter_children(fromitr)
 
-                while itr is not None:
-                    # проверяем, не нажата ли кнопка "прервать"
-                    if not self.jobRunning:
-                        return
-
-                    if ctx.skip_pg():
+                    while itr is not None:
                         # проверяем, не нажата ли кнопка "прервать"
-                        if not self.job_progress('', ctx.fileindex / self.filetree.filesTotal):
-                            return
+                        if not self.jobRunning:
+                            raise JobCancelled
 
-                    fdestname, info = self.filetree.store.get(itr, self.FTCOL_FNAME, self.FTCOL_INFO)
-                    if info.ftype != FileTypes.DIRECTORY:
-                        ctx.next_file()
+                        if self.job_skip_progress():
+                            # проверяем, не нажата ли кнопка "прервать"
+                            if not self.job_progress('', self.jobCtxFileIndex / self.filetree.filesTotal):
+                                raise JobCancelled
 
-                        fdestdir = os.path.join(self.env.destinationDir, self.filetree_get_item_dest_dir(itr))
+                        fdestname, info = self.filetree.store.get(itr, self.FTCOL_FNAME, self.FTCOL_INFO)
+                        if info.ftype != FileTypes.DIRECTORY:
+                            self.job_next_file()
 
-                        serr = make_dirs(fdestdir)
-                        if serr:
-                            self.job_error(markup_escape_text(serr))
-                            return
+                            fdestdir = os.path.join(self.env.destinationDir, self.filetree_get_item_dest_dir(itr))
 
-                        fdestpath = os.path.join(fdestdir, fdestname)
+                            serr = make_dirs(fdestdir)
+                            if serr:
+                                self.job_message(True, markup_escape_text(serr))
+                                return
 
-                        #
-                        # проверяем, нету ли уже такого файла...
-                        #
-                        enableFOp = True
+                            fdestpath = os.path.join(fdestdir, fdestname)
 
-                        if os.path.exists(fdestpath):
-                            if self.env.ifFileExists == self.env.FEXIST_SKIP:
-                                self.job_error('Файл "%s" уже существует' % markup_escape_text(fdestname))
-                                ctx.errors += 1
-                                ctx.skippedfiles += 1
-                                enableFOp = False
-                            elif self.env.ifFileExists == self.env.FEXIST_RENAME:
-                                # пытаемся подобрать незанятое имя
+                            #
+                            # проверяем, нету ли уже такого файла...
+                            #
+                            enableFOp = True
 
-                                canBeRenamed = False
-
-                                fdestname, fdestext = os.path.splitext(fdestname)
-
-                                # нефиг больше 10 повторов... и 10-то много
-                                for unum in range(1, 11):
-                                    fdestpath = os.path.join(fdestdir, '%s-%d%s' % (fdestname, unum, fdestext))
-
-                                    if not os.path.exists(fdestpath):
-                                        canBeRenamed = True
-                                        break
-
-                                if not canBeRenamed:
-                                    self.job_error(markup_escape_text('В каталоге "%s" слишком много файлов с именем %s*%s' % (fdestdir, fdestname, fdestext)))
-                                    ctx.errors += 1
-                                    ctx.skippedfiles += 1
+                            if os.path.exists(fdestpath):
+                                if self.env.ifFileExists == self.env.FEXIST_SKIP:
+                                    self.job_message(False, 'Файл с именем "%s" уже есть в каталоге назначения' % markup_escape_text(fdestname))
+                                    self.jobCtxSkippedFiles += 1
                                     enableFOp = False
-                            # else:
-                            # self.env.FEXIST_OVERWRITE - перезаписываем
+                                elif self.env.ifFileExists == self.env.FEXIST_RENAME:
+                                    # пытаемся подобрать незанятое имя
 
-                        #
-                        # а теперь уже пытаемся скопировать или переместить
-                        #
-                        if enableFOp:
-                            fsrcpath = os.path.join(self.filetree.scannedSrcDirs[info.srcdirix], info.srcfname)
+                                    canBeRenamed = False
 
-                            try:
-                                fileopFunction(fsrcpath, fdestpath)
-                            except (IOError, os.error) as emsg:
-                                print_exception()
-                                ctx.errors += 1
-                                self.job_error(markup_escape_text('Не удалось % файл - %s' % (fileopVerb, repr(emsg))))
+                                    fdestname, fdestext = os.path.splitext(fdestname)
 
-                    else:
-                        __process_node(itr, ctx)
+                                    # нефиг больше 10 повторов... и 10-то много
+                                    for unum in range(1, 11):
+                                        fdestpath = os.path.join(fdestdir, '%s-%d%s' % (fdestname, unum, fdestext))
 
-                    itr = self.filetree.store.iter_next(itr)
+                                        if not os.path.exists(fdestpath):
+                                            canBeRenamed = True
+                                            break
 
-            __process_node(None, foctx)
+                                    if not canBeRenamed:
+                                        self.job_message(True, markup_escape_text('В каталоге "%s" слишком много файлов с именем %s*%s' % (fdestdir, fdestname, fdestext)))
+                                        self.jobCtxSkippedFiles += 1
+                                        enableFOp = False
+                                # else:
+                                # self.env.FEXIST_OVERWRITE - перезаписываем
 
+                            #
+                            # а теперь уже пытаемся скопировать или переместить
+                            #
+                            if enableFOp:
+                                fsrcpath = os.path.join(self.filetree.scannedSrcDirs[info.srcdirix], info.srcfname)
+
+                                try:
+                                    fileopFunction(fsrcpath, fdestpath)
+                                except (IOError, os.error) as emsg:
+                                    print_exception()
+                                    self.job_message(True, markup_escape_text('Не удалось % файл - %s' % (fileopVerb, repr(emsg))))
+
+                        else:
+                            __process_node(itr)
+
+                        itr = self.filetree.store.iter_next(itr)
+
+                __process_node(None)
+
+            except JobCancelled:
+                self.job_message(True, 'Операция прервана')
         finally:
             self.txtFinalPageTitle.set_text('%s завершёно' % sTitle)
-            self.txtFinalPageMsg.set_text(('%s выполнено успешно' % sTitle) if foctx.errors == 0 else 'Ошибок: %d.' % foctx.errors)
+
+            hasMessages = self.errorlist.store.iter_n_children() != 0
+
+            if not hasMessages:
+                sfmsg = '%s выполнено успешно' % sTitle
+            else:
+                afmsg = []
+
+                if self.jobCtxErrors:
+                    afmsg.append('Ошибок: %d' % self.jobCtxErrors)
+                elif self.jobCtxWarnings:
+                    afmsg.append('Предупреждений: %d' % self.jobCtxWarnings)
+                elif self.jobCtxSkippedFiles:
+                    afmsg.append('Неизменённых файлов: %d' % self.jobCtxSkippedFiles)
+
+                sfmsg = 'Операция завершена' if not afmsg else '\n'.join(afmsg)
+
+            self.txtFinalPageMsg.set_text(sfmsg)
 
             self.job_end()
 
             self.errorlist.view.set_model(self.errorlist.store)
-            self.errorlistswnd.set_visible(foctx.errors != 0)
+            self.errorlistswnd.set_visible(hasMessages)
 
-            if self.env.closeIfSuccess and foctx.errors == 0:
+            if self.env.closeIfSuccess and self.jobCtxErrors == 0:
                 self.do_exit(self.wndMain)
 
-    def job_error(self, msg):
+    def job_message(self, iserror, msg):
         """Добавляет текст сообщения об ошибке в отображалку.
+
+        iserror - True для ошибок, False для предупреждений;
+        msg     - текст сообщения.
+
         Текст может содержать Pango Markup, соответственно,
         добавляемые в текст строки при необходимости должны быть
         пропущены через markup_escape_text()."""
 
-        self.errorlist.store.append((msg, ))
+        if iserror:
+            self.jobCtxErrors += 1
+            icon = self.iconJobError
+        else:
+            self.jobCtxWarnings += 1
+            icon = self.iconJobWarning
+
+        self.errorlist.store.append((icon, msg, ))
 
     def btn_fileops_start_clicked(self, btn):
         self.fileops_execute()

@@ -15,6 +15,8 @@
   </object>
   <object class="GtkListStore" id="errorliststore">
     <columns>
+      <!-- column-name icon -->
+      <column type="GdkPixbuf"/>
       <!-- column-name message -->
       <column type="gchararray"/>
     </columns>
@@ -868,11 +870,18 @@
                                         </child>
                                         <child>
                                           <object class="GtkTreeViewColumn" id="colFOpErrMsg">
+                                            <property name="spacing">4</property>
                                             <property name="title" translatable="yes">Сообщение</property>
                                             <child>
-                                              <object class="GtkCellRendererText" id="crFOpErrText"/>
+                                              <object class="GtkCellRendererPixbuf" id="crFOpIcon"/>
                                               <attributes>
-                                                <attribute name="markup">0</attribute>
+                                                <attribute name="pixbuf">0</attribute>
+                                              </attributes>
+                                            </child>
+                                            <child>
+                                              <object class="GtkCellRendererText" id="crFOpText"/>
+                                              <attributes>
+                                                <attribute name="markup">1</attribute>
                                               </attributes>
                                             </child>
                                           </object>
