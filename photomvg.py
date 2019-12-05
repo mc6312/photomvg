@@ -479,6 +479,7 @@ class MainWnd():
                         # считая их повреждёнными.
                         # из исправных JPEG и пр., не содержащих EXIF, метаданные хоть какие-то да выжимаются,
                         # потому сюда они не попадут
+                        # в гуйную отображалку сообщений это не кладём
                         print('Не удалось получить метаданные файла "%s" - %s' % (fpath, str(ex)), file=sys.stderr)
                         continue
 
@@ -491,6 +492,8 @@ class MainWnd():
                         fname,
                         self.FileInfo(fext, ftype, False, fmetadata,
                                       srcdirix, srcfname))
+        else:
+            self.job_message(True, 'Каталог "%s" недоступен или не существует' % (markup_escape_text(fromdirname)))
 
     def __filetree_append_item(self, newdir, newfname, newinfo):
         """Добавление поддерева элементов в filetree.store.
@@ -816,6 +819,9 @@ class MainWnd():
 
         self.headerBar.set_sensitive(False)
 
+        self.errorlist.view.set_model(None)
+        self.errorlist.store.clear()
+
     def job_progress(self, txt, fraction):
         self.pbarScanSrcDirs.set_text(txt)
 
@@ -831,6 +837,15 @@ class MainWnd():
     def job_end(self):
         self.jobRunning = False
         self.headerBar.set_sensitive(True)
+
+        if self.jobEndPage == self.PAGE_FINAL and self.errorlist.store.iter_n_children() != 0:
+            self.errorlist.view.set_model(self.errorlist.store)
+            elv = True
+        else:
+            elv = False
+
+        self.errorlistswnd.set_visible(elv)
+
         self.pages.set_current_page(self.jobEndPage)
 
     def job_stop(self, widget):
@@ -883,8 +898,6 @@ class MainWnd():
         fileopVerb = 'переместить' if self.env.modeMoveFiles else 'скопировать'
 
         self.job_begin(sTitle, self.PAGE_FINAL)
-        self.errorlist.view.set_model(None)
-        self.errorlist.store.clear()
         try:
             try:
                 # здесь создаём каталог(и) назначения и лОжим в них файлы
@@ -995,9 +1008,6 @@ class MainWnd():
             self.txtFinalPageMsg.set_text(sfmsg)
 
             self.job_end()
-
-            self.errorlist.view.set_model(self.errorlist.store)
-            self.errorlistswnd.set_visible(hasMessages)
 
             if self.env.closeIfSuccess and self.jobCtxErrors == 0:
                 self.do_exit(self.wndMain)
