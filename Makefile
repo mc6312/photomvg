@@ -1,7 +1,7 @@
 packer = 7z
 pack = $(packer) a -mx=9
 arcx = .7z
-docs = COPYING Changelog README.md TODO
+docs = COPYING Changelog README.md
 srcversion = pmvgcommon
 version = $(shell python3 -c 'from $(srcversion) import VERSION; print(VERSION)')
 title_version = $(shell python3 -c 'from $(srcversion) import TITLE_VERSION; print(TITLE_VERSION)')
