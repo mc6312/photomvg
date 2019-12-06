@@ -63,6 +63,7 @@ class MainWnd():
     CBFOP_COPY, CBFOP_MOVE = range(2)
 
     JOB_PROGRESS_SKIP = 1000
+    JOB_MIN_SCROLLABLE_MSGS = 15
 
     class FileInfo():
         """Вспомогательный костыль, экземпляр которого кладётся
@@ -649,7 +650,7 @@ class MainWnd():
         sel = self.filetree.selection.get_selected_rows()
 
         if sel is not None:
-            for path in sel[1]:
+            for path in reversed(sel[1]):
                 try:
                     itr = self.filetree.store.get_iter(path)
                     self.filetree.store.remove(itr)
@@ -792,6 +793,25 @@ class MainWnd():
 
         self.__srcdirlist_select_all(not (self.chkSDirSel.get_active() or self.chkSDirSel.get_inconsistent()))
 
+    def job_message(self, iserror, msg):
+        """Добавляет текст сообщения об ошибке в отображалку.
+
+        iserror - True для ошибок, False для предупреждений;
+        msg     - текст сообщения.
+
+        Текст может содержать Pango Markup, соответственно,
+        добавляемые в текст строки при необходимости должны быть
+        пропущены через markup_escape_text()."""
+
+        if iserror:
+            self.jobCtxErrors += 1
+            icon = self.iconJobError
+        else:
+            self.jobCtxWarnings += 1
+            icon = self.iconJobWarning
+
+        self.errorlist.store.append((icon, msg, ))
+
     def job_next_file(self):
         self.jobCtxFileIndex += 1.0
 
@@ -838,7 +858,9 @@ class MainWnd():
         self.jobRunning = False
         self.headerBar.set_sensitive(True)
 
-        if self.jobEndPage == self.PAGE_FINAL and self.errorlist.store.iter_n_children() != 0:
+        nmsgs = self.errorlist.store.iter_n_children()
+
+        if self.jobEndPage == self.PAGE_FINAL and nmsgs > 0:
             self.errorlist.view.set_model(self.errorlist.store)
             elv = True
         else:
@@ -987,7 +1009,7 @@ class MainWnd():
             except JobCancelled:
                 self.job_message(True, 'Операция прервана')
         finally:
-            self.txtFinalPageTitle.set_text('%s завершёно' % sTitle)
+            self.txtFinalPageTitle.set_text('%s файлов завершёно' % sTitle)
 
             hasMessages = self.errorlist.store.iter_n_children() != 0
 
@@ -997,39 +1019,22 @@ class MainWnd():
                 afmsg = []
 
                 if self.jobCtxErrors:
-                    afmsg.append('Ошибок: %d' % self.jobCtxErrors)
-                elif self.jobCtxWarnings:
-                    afmsg.append('Предупреждений: %d' % self.jobCtxWarnings)
-                elif self.jobCtxSkippedFiles:
-                    afmsg.append('Неизменённых файлов: %d' % self.jobCtxSkippedFiles)
+                    afmsg.append('Ошибок: <b>%d</b>' % self.jobCtxErrors)
+
+                if self.jobCtxWarnings:
+                    afmsg.append('Предупреждений: <b>%d</b>' % self.jobCtxWarnings)
+
+                if self.jobCtxSkippedFiles:
+                    afmsg.append('Неизменённых файлов: <b>%d</b>' % self.jobCtxSkippedFiles)
 
                 sfmsg = 'Операция завершена' if not afmsg else '\n'.join(afmsg)
 
-            self.txtFinalPageMsg.set_text(sfmsg)
+            self.txtFinalPageMsg.set_markup(sfmsg)
 
             self.job_end()
 
             if self.env.closeIfSuccess and self.jobCtxErrors == 0:
                 self.do_exit(self.wndMain)
-
-    def job_message(self, iserror, msg):
-        """Добавляет текст сообщения об ошибке в отображалку.
-
-        iserror - True для ошибок, False для предупреждений;
-        msg     - текст сообщения.
-
-        Текст может содержать Pango Markup, соответственно,
-        добавляемые в текст строки при необходимости должны быть
-        пропущены через markup_escape_text()."""
-
-        if iserror:
-            self.jobCtxErrors += 1
-            icon = self.iconJobError
-        else:
-            self.jobCtxWarnings += 1
-            icon = self.iconJobWarning
-
-        self.errorlist.store.append((icon, msg, ))
 
     def btn_fileops_start_clicked(self, btn):
         self.fileops_execute()

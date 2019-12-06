@@ -710,7 +710,7 @@
                       <object class="GtkLabel">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
-                        <property name="label" translatable="yes">, при совпадении</property>
+                        <property name="label" translatable="yes">, при совпадении имён файлов</property>
                       </object>
                       <packing>
                         <property name="expand">False</property>
@@ -724,8 +724,8 @@
                         <property name="can_focus">False</property>
                         <property name="active">0</property>
                         <items>
-                          <item translatable="yes">не перезаписывать</item>
-                          <item translatable="yes">переименовывать</item>
+                          <item translatable="yes">не заменять существующие</item>
+                          <item translatable="yes">добавлять номера к именам новых</item>
                           <item translatable="yes">заменять существующие</item>
                         </items>
                         <signal name="changed" handler="fileops_ifexists_changed" swapped="no"/>
@@ -844,6 +844,7 @@
                                     <property name="visible">True</property>
                                     <property name="can_focus">False</property>
                                     <property name="label" translatable="yes">...</property>
+                                    <property name="justify">center</property>
                                   </object>
                                   <packing>
                                     <property name="expand">False</property>
@@ -857,7 +858,8 @@
                                     <property name="can_focus">True</property>
                                     <property name="hscrollbar_policy">never</property>
                                     <property name="shadow_type">in</property>
-                                    <property name="min_content_height">320</property>
+                                    <property name="overlay_scrolling">False</property>
+                                    <property name="propagate_natural_height">True</property>
                                     <child>
                                       <object class="GtkTreeView" id="errorlistview">
                                         <property name="visible">True</property>
