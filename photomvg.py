@@ -995,9 +995,9 @@ class MainWnd():
 
                                 try:
                                     fileopFunction(fsrcpath, fdestpath)
-                                except (IOError, os.error) as emsg:
+                                except (IOError, OSError, os.error) as emsg:
                                     print_exception()
-                                    self.job_message(True, markup_escape_text('Не удалось % файл - %s' % (fileopVerb, repr(emsg))))
+                                    self.job_message(True, markup_escape_text('Не удалось %s файл - %s' % (fileopVerb, repr(emsg))))
 
                         else:
                             __process_node(itr)
