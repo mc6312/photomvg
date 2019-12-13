@@ -19,7 +19,7 @@
 
 
 TITLE = 'PhotoMVG'
-VERSION = '2.03'
+VERSION = '2.04'
 TITLE_VERSION = '%s v%s' % (TITLE, VERSION)
 URL = 'http://github.com/mc6312/photomvg'
 COPYRIGHT = '(c) 2019 MC-6312'
@@ -59,6 +59,26 @@ def make_dirs(path, excpt=None):
             raise excpt(emsg)
         else:
             return emsg
+
+
+__KIBIBYTE_F = 1024.0
+__MEBIBYTE_F = __KIBIBYTE_F * __KIBIBYTE_F
+
+def filesize_round_to_mb(n):
+    """Округление значения n (байты) до мебибайт.
+    Если значение больше 0, но меньше 1 MB - возвращается 1."""
+
+    mb = round(n / __MEBIBYTE_F)
+    mb = __MEBIBYTE_F if mb < __MEBIBYTE_F else mb
+    return int(mb)
+
+
+def filesize_to_mb_str(nbytes):
+    """Преобразует nbytes - значение в байтах в мегабайты.
+    Возвращает строку со значением мегабайт, с точностью до одного знака
+    после запятой."""
+
+    return '%.1f' % (nbytes / __MEBIBYTE_F)
 
 
 def path_validate(path):

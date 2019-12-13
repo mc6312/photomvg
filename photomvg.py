@@ -28,6 +28,7 @@ from gi.repository.GLib import markup_escape_text
 
 import sys
 import os, os.path
+import shutil
 
 from pmvgcommon import *
 from pmvgconfig import *
@@ -200,6 +201,9 @@ class MainWnd():
         # счетчик всех файлов (но не каталогов)
         # обновляется при запуске методов filetree_refresh() и filetree_check_all()
         self.filetree.filesTotal = 0
+        # размер всех файлов в байтах
+        # обновляется при запуске методов filetree_refresh() и filetree_check_all()
+        self.filetree.fileBytesTotal = 0
 
         # костыль для обработки DnD, см. filetree_drag_data_received(), filetree_drag_end()
         self.filetreedroprow = None
@@ -301,16 +305,18 @@ class MainWnd():
         Для совпадающих имён значение поля info.isdup устанавливается в True,
         также для них изменяется значок (значение поля FTCOL_ICON).
 
-        Возвращает кортеж из двух элементов:
-        1. общее количество файлов (но не каталогов) на текущем уровне и ниже,
+        Возвращает кортеж из трёх элементов:
+        1. общее количество файлов (но не каталогов) на текущем уровне и ниже;
         2. количество файлов с совпадающими именами минус один,
            (т.к. считаем, что из N файлов с одинаковыми именами один
            "оригинал", остальные - "дубликаты"). Учитываются в т.ч. имена
            каталогов, т.к. на одном уровне имя каталога и имя файла не должны
-           совпадать."""
+           совпадать;
+        3. общий размер файлов в байтах (для текущего уровня и ниже)."""
 
         nDuplicates = 0
         nFiles = 0
+        nFileBytes = 0
 
         oldname = None
 
@@ -335,7 +341,7 @@ class MainWnd():
 
             if info.ftype == FileTypes.DIRECTORY:
                 if checkChildren:
-                    nSubFiles, nSubDups = self.filetree_check_node(itr, True)
+                    nSubFiles, nSubDups, nSubBytes = self.filetree_check_node(itr, True)
                     if nSubDups:
                         self.filetree.store.set_value(itr,
                             self.FTCOL_ICON,
@@ -343,19 +349,21 @@ class MainWnd():
 
                     nDuplicates += nSubDups
                     nFiles += nSubFiles
+                    nFileBytes += nSubBytes
             else:
                 nFiles += 1
+                nFileBytes += info.metadata.fileSize
 
             itr = self.filetree.store.iter_next(itr)
 
-        return (nFiles, nDuplicates)
+        return (nFiles, nDuplicates, nFileBytes)
 
     def filetree_check_all(self):
         """Проверка всего дерева filetree.store на повтор имён файлов
         (см. filetree_check_node()). Обновляет значение счетчика
         filetree.filesWithDuplicates."""
 
-        self.filetree.filesTotal, self.filetree.filesWithDuplicates = self.filetree_check_node(None, True)
+        self.filetree.filesTotal, self.filetree.filesWithDuplicates, self.filetree.fileBytesTotal = self.filetree_check_node(None, True)
 
     def filetree_name_edited(self, crt, path, fname):
         """Имя файла в столбце treeview изменено.
@@ -484,6 +492,8 @@ class MainWnd():
                         print('Не удалось получить метаданные файла "%s" - %s' % (fpath, str(ex)), file=sys.stderr)
                         continue
 
+                    self.filetree.fileBytesTotal += fmetadata.fileSize
+
                     # генерация нового имени шаблоном на основе метаданных
                     tpl = self.env.get_template_from_metadata(fmetadata)
                     fnewdir, fname, fext = tpl.get_new_file_name(self.env, fmetadata)
@@ -527,11 +537,17 @@ class MainWnd():
                          dname,
                          ''))
 
-        tooltip = 'Оригинальное имя файла: <b>%s</b>' % newinfo.srcfname
+        atooltip = ['Оригинальное имя файла: <b>%s</b>' % newinfo.srcfname,
+            'Размер: <b>%s МБ</b>' % filesize_to_mb_str(newinfo.metadata.fileSize)]
+
+        if newinfo.metadata.fields[FileMetadata.MODEL]:
+            atooltip.append('Модель камеры: <b>%s</b>' % newinfo.metadata.fields[FileMetadata.MODEL])
+
+        atooltip.append('Дата: <b>%s</b>' % newinfo.metadata.timestamp)
 
         self.filetree.store.append(destitr,
             # проверяй порядок значений FTCOL_* и столбцов filetree.store в *.ui!
-            (newinfo, self.icons[newinfo.ftype][False], newfname, tooltip))
+            (newinfo, self.icons[newinfo.ftype][False], newfname, '\n'.join(atooltip)))
 
         self.filetree.filesTotal += 1
 
@@ -546,6 +562,7 @@ class MainWnd():
         self.filetree.scannedSrcDirs.clear()
         self.filetree.filesWithDuplicates = 0
         self.filetree.filesTotal = 0
+        self.filetree.fileBytesTotal = 0
 
         itr = self.srcdirlist.store.get_iter_first()
 
@@ -904,17 +921,49 @@ class MainWnd():
         sTitle = '%s файлов' % self.fileopModeTitle
 
         def __stop_msg(msg):
-            msg_dialog(self.wndMain, sTitle, msg)
+            """При критических ошибках подготовки -
+            ругаемся и возвращаемся на страницу задания."""
 
+            msg_dialog(self.wndMain, sTitle, msg)
+            self.pages.set_current_page(self.PAGE_DESTFNAMES)
+
+        #
+        # подготовка и проверка перед основной работой
+        #
+
+        #
         if self.filetree.filesTotal == 0:
             __stop_msg('Нет файлов для обработки.')
             return
 
+        #
+        # проверяем, всё ли в порядке с выбранными файлами
+        #
         self.filetree_check_all()
         if self.filetree.filesWithDuplicates:
             __stop_msg('''Обнаружено совпадение новых имён файлов (%d).
 Без исправления имён продолжение работы невозможно.''' % self.filetree.filesWithDuplicates)
             return
+
+        #
+        # создаём каталог(и) назначения и лОжим в них файлы
+        #
+        serr = make_dirs(self.env.destinationDir)
+        if serr:
+            __stop_msg(serr)
+            return
+
+        #
+        # проверяем, есть ли место под файлы в каталоге назначения
+        #
+        destFreeBytes = shutil.disk_usage(self.env.destinationDir)[-1]
+        destFreeMB = filesize_round_to_mb(destFreeBytes)
+        needMB = filesize_round_to_mb(self.filetree.fileBytesTotal)
+
+        # проверяем - с точностью до мебибайта, на всякий случай (мин. размер элемента ФС, то-сё...)
+        if destFreeMB < needMB:
+            __stop_msg('''В каталоге "%s" недостаточно места для новых файлов.
+Не хватает %s МБ.''' % (self.env.destinationDir, filesize_round_to_mb(self.filetree.fileBytesTotal - destFreeBytes)))
 
         fileopFunction = shutil.move if self.env.modeMoveFiles else shutil.copy
         fileopVerb = 'переместить' if self.env.modeMoveFiles else 'скопировать'
@@ -922,12 +971,6 @@ class MainWnd():
         self.job_begin(sTitle, self.PAGE_FINAL)
         try:
             try:
-                # здесь создаём каталог(и) назначения и лОжим в них файлы
-
-                serr = make_dirs(self.env.destinationDir)
-                if serr:
-                    self.job_message(markup_escape_text(serr))
-
                 # пошли надругаться над файлами
                 def __process_node(fromitr):
                     itr = self.filetree.store.iter_children(fromitr)

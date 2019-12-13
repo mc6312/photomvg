@@ -119,6 +119,9 @@ class FileMetadata():
                       содержат значения в виде строк или None
         fileName    - имя файла без расширения
         fileExt     - и расширение
+        fileSize    - размер файла в байтах
+        timestamp   - экземпляр datetime.datetime со значениями из EXIF
+                      (если таковые нашлись) или mtime файла
 
         В случае неизвестного типа файлов всем полям присваивается
         значение None.
@@ -174,7 +177,7 @@ class FileMetadata():
             # даже если в файле нет EXIF
             #    print('GLib.Error: %s - %s' % (GLib.strerror(ex.code), ex.message))
 
-        dt = None
+        self.timestamp = None
 
         if md:
             # ковыряемся в тэгах:
@@ -187,10 +190,10 @@ class FileMetadata():
                     # 2016:07:11 20:28:50
                     dts = md.get_tag_string(tagname)
                     try:
-                        dt = datetime.datetime.strptime(dts, u'%Y:%m:%d %H:%M:%S')
+                        self.timestamp = datetime.datetime.strptime(dts, u'%Y:%m:%d %H:%M:%S')
                     except Exception as ex:
                         print('* Warning!', str(ex))
-                        dt = None
+                        self.timestamp = None
                         continue
                     break
 
@@ -203,23 +206,30 @@ class FileMetadata():
                     self.fields[self.MODEL] = model
 
         #
+        fstatr = os.stat(filename)
+
+        # размер файла в байтах
+        self.fileSize = fstatr.st_size
+
+        #
         # доковыриваем дату
         #
-        if dt:
+        if self.timestamp:
             # вахЪ! дата нашлась в EXIF!
-            if dt.year < 1800 or dt.month <1 or dt.month > 12 or dt.day <1 or dt.day > 31:
+            if self.timestamp.year < 1800 or self.timestamp.month <1 or self.timestamp.month > 12 or self.timestamp.day <1 or self.timestamp.day > 31:
                 # но содержит какую-то херню
-                dt = None
-        else:
-            # фигвам. берём в качестве даты создания mtime файла
-            dt = datetime.datetime.fromtimestamp(os.stat(filename).st_mtime)
+                self.timestamp = None
 
-        self.fields[self.YEAR]      = '%.4d' % dt.year
-        self.fields[self.MONTH]     = '%.2d' % dt.month
-        self.fields[self.DAY]       = '%.2d' % dt.day
-        self.fields[self.HOUR]      = '%.2d' % dt.hour
-        self.fields[self.MINUTE]    = '%.2d' % dt.minute
-        self.fields[self.SECOND]    = '%.2d' % dt.second
+        # фигвам. берём в качестве даты создания mtime файла
+        if self.timestamp is None:
+            self.timestamp = datetime.datetime.fromtimestamp(fstatr.st_mtime)
+
+        self.fields[self.YEAR]      = '%.4d' % self.timestamp.year
+        self.fields[self.MONTH]     = '%.2d' % self.timestamp.month
+        self.fields[self.DAY]       = '%.2d' % self.timestamp.day
+        self.fields[self.HOUR]      = '%.2d' % self.timestamp.hour
+        self.fields[self.MINUTE]    = '%.2d' % self.timestamp.minute
+        self.fields[self.SECOND]    = '%.2d' % self.timestamp.second
 
     __FLD_NAMES = ('FILETYPE', 'MODEL', 'PREFIX', 'NUMBER',
         'YEAR', 'MONTH', 'DAY', 'HOUR', 'MINUTE', 'SECOND')
