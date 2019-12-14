@@ -186,6 +186,12 @@ class MainWnd():
 
         self.srcdirlist_update_sel_all_cbox()
 
+        # текущий шаблон
+        self.cboxTemplate, self.cboxTemplateStore = get_ui_widgets(uibldr, ('cboxTemplate', 'cboxTemplateStore'))
+        self.app_update_template_cbox()
+
+        self.templateOverride = None # будет присвоено в filetree_refresh()
+
         #
         # PAGE_DESTFNAMES, дерево новых каталогов/файлов
         #
@@ -291,16 +297,7 @@ class MainWnd():
         self.setup_sensitive_widgets(pnum)
 
     def mnu_main_settings(self, mnuitem):
-        olddestdirs = self.env.destinationDirs.copy()
-
-        if self.dlgSettings.run():
-            # обновляем список каталогов назначения в комбобоксе...
-            #...удаляя лишние
-            for ddremove in olddestdirs - self.env.destinationDirs:
-                self.fcbtnFOpDestDir.remove_shortcut_folder(ddremove)
-            #...и добавляя новые
-            for ddadd in self.env.destinationDirs - olddestdirs:
-                self.fcbtnFOpDestDir.add_shortcut_folder(ddadd)
+        self.app_configure()
 
     def file_open_shell(self, menuitem):
         itr = self.srcdirlist.get_selected_iter()
@@ -512,7 +509,8 @@ class MainWnd():
                     self.filetree.fileBytesTotal += fmetadata.fileSize
 
                     # генерация нового имени шаблоном на основе метаданных
-                    tpl = self.env.get_template_from_metadata(fmetadata)
+                    tpl = self.templateOverride if self.templateOverride is not None else self.env.get_template_from_metadata(fmetadata)
+
                     fnewdir, fname, fext = tpl.get_new_file_name(self.env, fmetadata)
                     fname = '%s%s' % (fname, fext)
 
@@ -571,6 +569,14 @@ class MainWnd():
     def filetree_refresh(self):
         """Обход каталогов из списка srcdirlist.store с заполнением дерева
         filetree.store."""
+
+        self.env.currentTemplateName = self.cboxTemplate.get_active_id()
+        if self.env.currentTemplateName:
+            # не пустая строка и не None
+            self.templateOverride = self.env.templates[self.env.currentTemplateName]
+        else:
+            # используем автомат по модели камеры, как в предыдущих версиях
+            self.templateOverride = None
 
         self.job_begin('Поиск файлов...', self.PAGE_DESTFNAMES)
 
@@ -692,6 +698,41 @@ class MainWnd():
                     # get_iter() падает с исключением, если path указывает
                     # на уже удалённый элемент!
                     pass
+
+    def app_configure(self):
+        """Вызов диалога настроек"""
+
+        olddestdirs = self.env.destinationDirs.copy()
+
+        if self.dlgSettings.run():
+            # обновляем список каталогов назначения в комбобоксе...
+            #...удаляя лишние
+            for ddremove in olddestdirs - self.env.destinationDirs:
+                self.fcbtnFOpDestDir.remove_shortcut_folder(ddremove)
+            #...и добавляя новые
+            for ddadd in self.env.destinationDirs - olddestdirs:
+                self.fcbtnFOpDestDir.add_shortcut_folder(ddadd)
+
+            # обновляем комбобокс выбора шаблона
+            self.app_update_template_cbox()
+
+    def app_update_template_cbox(self):
+        """Заполнение значениями комбобокса выбора шаблона"""
+
+        self.cboxTemplateStore.clear()
+
+        self.cboxTemplateStore.append(('', '&lt;автовыбор&gt;'))
+
+        selt = ''
+        for tname in sorted(self.env.templates):
+            if tname == self.env.currentTemplateName:
+                selt = tname
+
+            self.cboxTemplateStore.append((tname, '<b>%s</b> (%s)' %\
+                (tname,
+                markup_escape_text(self.env.templates[tname].get_display_str()))))
+
+        self.cboxTemplate.set_active_id(selt)
 
     def srcdirlist_flush_to_env(self):
         """Копирование списка исходных каталогов в env."""
@@ -1112,7 +1153,7 @@ class MainWnd():
     def btn_restart_clicked(self, wgt):
         self.pages.set_current_page(self.PAGE_START)
 
-    def show_about_box(self, wgt):
+    def app_show_about_box(self, wgt):
         self.dlgAbout.show()
         self.dlgAbout.run()
         self.dlgAbout.hide()

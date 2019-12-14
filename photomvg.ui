@@ -2,6 +2,14 @@
 <!-- Generated with glade 3.22.1 -->
 <interface>
   <requires lib="gtk+" version="3.20"/>
+  <object class="GtkListStore" id="cboxTemplateStore">
+    <columns>
+      <!-- column-name id -->
+      <column type="gchararray"/>
+      <!-- column-name value -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
   <object class="GtkCheckButton" id="chkSDirSel">
     <property name="visible">True</property>
     <property name="can_focus">True</property>
@@ -59,7 +67,7 @@
         <property name="can_focus">False</property>
         <property name="label" translatable="yes">О программе...</property>
         <property name="use_underline">True</property>
-        <signal name="activate" handler="show_about_box" swapped="no"/>
+        <signal name="activate" handler="app_show_about_box" swapped="no"/>
       </object>
     </child>
     <child>
@@ -302,10 +310,39 @@
                       </packing>
                     </child>
                     <child>
-                      <placeholder/>
+                      <object class="GtkLabel">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="label" translatable="yes">в указанных каталогах, используя для новых имён шаблон</property>
+                      </object>
+                      <packing>
+                        <property name="expand">False</property>
+                        <property name="fill">True</property>
+                        <property name="position">1</property>
+                      </packing>
                     </child>
                     <child>
-                      <placeholder/>
+                      <object class="GtkComboBox" id="cboxTemplate">
+                        <property name="visible">True</property>
+                        <property name="can_focus">False</property>
+                        <property name="model">cboxTemplateStore</property>
+                        <property name="active">1</property>
+                        <property name="popup_fixed_width">False</property>
+                        <property name="id_column">0</property>
+                        <child>
+                          <object class="GtkCellRendererText" id="crTplText">
+                            <property name="ellipsize">middle</property>
+                          </object>
+                          <attributes>
+                            <attribute name="markup">1</attribute>
+                          </attributes>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="expand">True</property>
+                        <property name="fill">True</property>
+                        <property name="position">2</property>
+                      </packing>
                     </child>
                   </object>
                   <packing>

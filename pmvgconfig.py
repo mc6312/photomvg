@@ -143,6 +143,7 @@ class Environment():
     OPT_MOVE_FILES = 'move-files'
     OPT_IF_EXISTS = 'if-exists'
     OPT_CLOSE_IF_SUCCESS = 'close-if-success'
+    OPT_CUR_TEMPLATE_NAME = 'current-template-name'
 
     SEC_SRC_DIRS = 'src-dirs'
     SEC_DEST_DIRS = 'dest-dirs'
@@ -201,6 +202,12 @@ class Environment():
 
         # закрывать ли программу в случае успешного завершения (копирования)
         self.closeIfSuccess = False
+
+        # текущий шаблон (выбирается в UI)
+        # 1. строка с названием выбранного шаблона - он применяется для всех файлов
+        # или
+        # 2. пустая строка или None - в этом случае используется автомат, как в предыдущих версиях
+        self.currentTemplateName = ''
 
         # сокращенные псевдонимы камер
         # ключи словаря - названия камер, соответствующие соотв. полю EXIF
@@ -379,6 +386,11 @@ class Environment():
         self.closeIfSuccess = self.cfg.getboolean(self.SEC_OPTIONS, self.OPT_CLOSE_IF_SUCCESS, fallback=True)
 
         #
+        # current-template-name
+        #
+        self.currentTemplateName = self.cfg.get(self.SEC_OPTIONS, self.OPT_CUR_TEMPLATE_NAME, fallback='')
+
+        #
         # known-*-types
         #
         for ftype in self.OPT_KNOWN_FILE_TYPES:
@@ -495,9 +507,12 @@ class Environment():
             self.cfg.add_section(self.SEC_OPTIONS)
 
         self.cfg.set(self.SEC_OPTIONS, self.OPT_MOVE_FILES, str(self.modeMoveFiles))
-        self.cfg.set(self.SEC_OPTIONS, self.OPT_DEST_DIR, self.destinationDir if self.destinationDir else '') # м.б. None, а в файл ложить None низя!
+        self.cfg.set(self.SEC_OPTIONS, self.OPT_DEST_DIR,
+            self.destinationDir if self.destinationDir else '') # м.б. None, а в файл ложить None низя!
         self.cfg.set(self.SEC_OPTIONS, self.OPT_IF_EXISTS, self.FEXISTS_OPTIONS_STR[self.ifFileExists])
         self.cfg.set(self.SEC_OPTIONS, self.OPT_CLOSE_IF_SUCCESS, str(self.closeIfSuccess))
+        self.cfg.set(self.SEC_OPTIONS, self.OPT_CUR_TEMPLATE_NAME,
+            self.currentTemplateName if self.currentTemplateName else '')
 
     def save(self):
         """Сохранение настроек.
@@ -576,6 +591,7 @@ class Environment():
         return '''%s(configPath = "%s"
   modeMoveFiles = %s
   closeIfSuccess = %s
+  currentTemplateName = "%s"
   sourceDirs = %s
   destinationDir = "%s"
   destinationDirs = %s
@@ -586,6 +602,7 @@ class Environment():
     self.configPath,
     self.modeMoveFiles,
     self.closeIfSuccess,
+    self.currentTemplateName,
     str(self.sourceDirs),
     self.destinationDir,
     str(self.destinationDirs),
