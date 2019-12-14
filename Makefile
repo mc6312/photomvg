@@ -5,6 +5,7 @@ docs = COPYING Changelog README.md
 srcversion = pmvgcommon
 version = $(shell python3 -c 'from $(srcversion) import VERSION; print(VERSION)')
 title_version = $(shell python3 -c 'from $(srcversion) import TITLE_VERSION; print(TITLE_VERSION)')
+branch = $(shell git symbolic-ref --short HEAD)
 basename = photomvg
 zipname = $(basename).zip
 arcname = $(basename)$(arcx)
@@ -38,3 +39,5 @@ docview:
 	@echo "</body></html>" >>$(docname)
 	x-www-browser $(docname)
 	#rm $(docname)
+show-branch:
+	@echo "$(branch)"

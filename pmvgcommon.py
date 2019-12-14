@@ -19,7 +19,7 @@
 
 
 TITLE = 'PhotoMVG'
-VERSION = '2.04'
+VERSION = '2.05'
 TITLE_VERSION = '%s v%s' % (TITLE, VERSION)
 URL = 'http://github.com/mc6312/photomvg'
 COPYRIGHT = '(c) 2019 MC-6312'
@@ -82,7 +82,8 @@ def filesize_to_mb_str(nbytes):
 
 
 def path_validate(path):
-    return os.path.abspath(os.path.expanduser(path))
+    # 33 перестраховки, ибо ваистену
+    return os.path.realpath(os.path.abspath(os.path.expanduser(path)))
 
 
 INVALID_TEMPLATE_CHARS = '\t\n\r*?:"<>|%s' % ('/' if os.path.sep == '\\' else '\\')
@@ -132,8 +133,8 @@ def same_dir(dir1, dir2):
     или один является подкаталогом другого.
     Для правильности проверки оба пути должны быть абсолютными."""
 
-    dir1 = os.path.abspath(dir1)
-    dir2 = os.path.abspath(dir2)
+    dir1 = os.path.realpath(os.path.abspath(dir1))
+    dir2 = os.path.realpath(os.path.abspath(dir2))
 
     if dir1 == dir2: #os.path.samefile(dir1, dir2):
         return True

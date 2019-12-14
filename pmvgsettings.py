@@ -36,6 +36,8 @@ class SettingsDialog():
 
     ALCOL_MODEL, ALCOL_ALIAS = range(2)
 
+    DDCOL_DESTDIR = 0
+
     def wnd_destroy(self, widget):
         Gtk.main_quit()
 
@@ -85,6 +87,13 @@ class SettingsDialog():
         #
         self.dlgAlias = uibldr.get_object('dlgAlias')
         self.cameramodelentry, self.aliasentry = get_ui_widgets(uibldr, ('cameramodelentry', 'aliasentry'))
+
+        #
+        # destdirs
+        #
+        self.dlgDDirChoose = uibldr.get_object('dlgDDirChoose')
+        self.destdirlist = TreeViewShell(uibldr.get_object('destdirsview'))
+        self.destdirlist.sortColumn = self.DDCOL_DESTDIR
 
         #
         self.cbtnCloseIfSuccess = uibldr.get_object('cbtnCloseIfSuccess')
@@ -394,6 +403,70 @@ class SettingsDialog():
 
             itr = self.aliaslist.store.iter_next(itr)
 
+    def __destdirlist_from_env(self):
+        """Заполнение destdirlist.store данными из env"""
+
+        self.destdirlist.refresh_begin()
+
+        for destdir in self.env.destinationDirs:
+            self.destdirlist.store.append((destdir, ))
+
+        self.destdirlist.refresh_end()
+
+    def __destdirlist_to_env(self):
+        """Заменяет env.destinationDirs данными из destdirlist.store."""
+
+        self.env.destinationDirs.clear()
+
+        itr = self.destdirlist.store.get_iter_first()
+
+        while itr is not None:
+            self.env.destinationDirs.add(self.destdirlist.store.get_value(itr, self.DDCOL_DESTDIR))
+
+            itr = self.destdirlist.store.iter_next(itr)
+
+    def destdir_add(self, btn):
+        self.dlgDDirChoose.show()
+        r = self.dlgDDirChoose.run()
+        self.dlgDDirChoose.hide()
+
+        if r != Gtk.ResponseType.OK:
+            return
+
+        destdir = path_validate(self.dlgDDirChoose.get_current_folder())
+        if not destdir:
+            return
+
+        itr = self.destdirlist.store.get_iter_first()
+
+        while itr is not None:
+            ddrec = self.destdirlist.store.get_value(itr, self.DDCOL_DESTDIR)
+
+            # НЕ same_dir(), т.к. в списке каталогов назначения
+            # не допускаются только полностью совпадающие пути
+            if os.path.samefile(ddrec, destdir):
+                msg_dialog(self.dlg, 'Добавление каталога назначения',
+                    'Каталог "%s" уже есть в списке.' % destdir,
+                    Gtk.MessageType.WARNING)
+                return
+
+            itr = self.destdirlist.store.iter_next(itr)
+
+        self.destdirlist.store.append((destdir, ))
+
+    def destdir_remove(self, btn):
+        itr = self.destdirlist.get_selected_iter()
+
+        if itr is not None:
+            destdir = self.destdirlist.store.get_value(itr, self.DDCOL_DESTDIR)
+
+            if msg_dialog(self.dlg, 'Удаление каталога назначения',
+                'Удалить каталог "%s" из списка?' % destdir,
+                Gtk.MessageType.QUESTION, Gtk.ButtonsType.YES_NO) != Gtk.ResponseType.YES:
+                return
+
+            self.destdirlist.store.remove(itr)
+
     def run(self):
         """Запускает диалог настроек.
         Возвращает True, если в настройки внесены изменения,
@@ -402,6 +475,7 @@ class SettingsDialog():
         # заполнение виджетов данными
         self.__templatelist_from_env()
         self.__aliaslist_from_env()
+        self.__destdirlist_from_env()
 
         self.cbtnCloseIfSuccess.set_active(self.env.closeIfSuccess)
 
@@ -415,6 +489,7 @@ class SettingsDialog():
             # получение данных из виджетов
             self.__templatelist_to_env()
             self.__aliaslist_to_env()
+            self.__destdirlist_to_env()
             self.env.closeIfSuccess = self.cbtnCloseIfSuccess.get_active()
             #!!!
             self.env.save()

@@ -220,7 +220,15 @@ class MainWnd():
         self.cboxFOp.set_active(self.CBFOP_MOVE if self.env.modeMoveFiles else self.CBFOP_COPY)
         self.fileops_update_mode_settings()
 
-        self.fcbtnFOpDestDir.set_current_folder(self.env.destinationDir)
+        if self.env.destinationDir:
+            # задаём виджету выбора каталога назначения путь только в том
+            # случае, когда в конфиге задан оный путь.
+            # при его отсутствии виджет должен показывать "нету" и возвращать None
+            self.fcbtnFOpDestDir.set_filename(self.env.destinationDir)
+
+        # список ранее использованных целевых каталогов, для быстрого выбора
+        for destdir in sorted(self.env.destinationDirs):
+            self.fcbtnFOpDestDir.add_shortcut_folder(destdir)
 
         self.cboxFOpIfExists.set_active(self.env.ifFileExists)
 
@@ -283,7 +291,16 @@ class MainWnd():
         self.setup_sensitive_widgets(pnum)
 
     def mnu_main_settings(self, mnuitem):
-        self.dlgSettings.run()
+        olddestdirs = self.env.destinationDirs.copy()
+
+        if self.dlgSettings.run():
+            # обновляем список каталогов назначения в комбобоксе...
+            #...удаляя лишние
+            for ddremove in olddestdirs - self.env.destinationDirs:
+                self.fcbtnFOpDestDir.remove_shortcut_folder(ddremove)
+            #...и добавляя новые
+            for ddadd in self.env.destinationDirs - olddestdirs:
+                self.fcbtnFOpDestDir.add_shortcut_folder(ddadd)
 
     def file_open_shell(self, menuitem):
         itr = self.srcdirlist.get_selected_iter()
@@ -911,9 +928,6 @@ class MainWnd():
 
         self.env.ifFileExists = ix
 
-    def fileops_dest_dir_set(self, fcb):
-        self.env.destinationDir = fcb.get_current_folder()
-
     def fileops_execute(self):
         """Основная часть работы - копирование или перемещение файлов
         в новые каталоги под новыми именами."""
@@ -948,10 +962,20 @@ class MainWnd():
         #
         # создаём каталог(и) назначения и лОжим в них файлы
         #
+        self.env.destinationDir = self.fcbtnFOpDestDir.get_filename() #current_folder()
+
+        if not self.env.destinationDir:
+            __stop_msg('Не указан каталог назначения.')
+            return
+
         serr = make_dirs(self.env.destinationDir)
         if serr:
             __stop_msg(serr)
             return
+
+        # добавляем каталог назначения во внутренний список каталогов назначения
+        # для будущего добавления в self.fcbtnFOpDestDir
+        self.env.destinationDirs.add(self.env.destinationDir)
 
         #
         # проверяем, есть ли место под файлы в каталоге назначения

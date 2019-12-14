@@ -145,6 +145,7 @@ class Environment():
     OPT_CLOSE_IF_SUCCESS = 'close-if-success'
 
     SEC_SRC_DIRS = 'src-dirs'
+    SEC_DEST_DIRS = 'dest-dirs'
 
     # FileTypes.IMAGE, RAW_IMAGE, VIDEO
     # а FileTypes.DIRECTORY здесь НЕ используется!
@@ -187,7 +188,10 @@ class Environment():
         self.sourceDirs = []
 
         # каталог, в который копируются (или перемещаются) изображения
-        self.destinationDir = os.path.expanduser('~')
+        self.destinationDir = '' #os.path.expanduser('~')
+
+        # список ранее использованных каталогов назначения, для возможности быстрого выбора
+        self.destinationDirs = set()
 
         # поддерживаемые типы файлов (по расширениям)
         self.knownFileTypes = FileTypes()
@@ -241,6 +245,12 @@ class Environment():
                     self.__read_config_options()
 
                 #
+                # каталоги-приёмники
+                #
+                if self.cfg.has_section(self.SEC_DEST_DIRS):
+                    self.__read_config_destdirs()
+
+                #
                 # каталоги-источники
                 #
                 if self.cfg.has_section(self.SEC_SRC_DIRS):
@@ -271,12 +281,19 @@ class Environment():
             # в правильном режиме
             self.error = str(ex)
 
+    def __read_config_destdirs(self):
+        """Разбор секции dest-dirs файла настроек"""
+
+        for _vname, destdir in self.cfg.items(self.SEC_DEST_DIRS):
+            # путь добавляем во внутренний список, если он не совпадает
+            # с каким-то из уже добавленных;
+            # реальное существование каталога будет проверено при обработке файлов
+            self.destinationDirs.add(path_validate(destdir))
+
+        # на пустой список self.destinationDirs лаяться не будем - их можно потом добавить из GUI
+
     def __read_config_srcdirs(self):
         """Разбор секции src-dirs файла настроек"""
-
-        #
-        # каталоги с исходными файлами
-        #
 
         for _vname, vvalue in self.cfg.items(self.SEC_SRC_DIRS):
             suse, ssep, srcdir = map(lambda s: s.strip(), vvalue.partition(','))
@@ -325,7 +342,10 @@ class Environment():
         # каталог назначения
         #
 
-        self.destinationDir = path_validate(self.cfg.getstr(self.SEC_OPTIONS, self.OPT_DEST_DIR))
+        self.destinationDir = self.cfg.getstr(self.SEC_OPTIONS, self.OPT_DEST_DIR)
+        if self.destinationDir:
+            # теперь правим путь, только если он задан, иначе оставляем '' (см. Changelog, версию 2.05)
+            self.destinationDir = path_validate(self.destinationDir)
 
         # здесь на отсутствие каталога гавкать не будем - оно будет проверяться при запуске
         # файловых операций
@@ -460,23 +480,37 @@ class Environment():
         self.cfg.remove_section(secname)
         self.cfg.add_section(secname)
 
-    def save(self):
-        """Сохранение настроек.
-        В случае ошибки генерирует исключение."""
-
-        # секция paths
+    def __save_config_srcdirs(self):
         self.__cfg_clear_section(self.SEC_SRC_DIRS)
         for ixsd, srcdir in enumerate(self.sourceDirs, 1):
             self.cfg.set(self.SEC_SRC_DIRS, str(ixsd), '%s, %s' % (srcdir.use, srcdir.path))
 
-        # секция options
+    def __save_config_destdirs(self):
+        self.__cfg_clear_section(self.SEC_DEST_DIRS)
+        for ixdd, destdir in enumerate(self.destinationDirs, 1):
+            self.cfg.set(self.SEC_DEST_DIRS, str(ixdd), destdir)
+
+    def __save_config_options(self):
         if not self.cfg.has_section(self.SEC_OPTIONS):
             self.cfg.add_section(self.SEC_OPTIONS)
 
         self.cfg.set(self.SEC_OPTIONS, self.OPT_MOVE_FILES, str(self.modeMoveFiles))
-        self.cfg.set(self.SEC_OPTIONS, self.OPT_DEST_DIR, self.destinationDir)
+        self.cfg.set(self.SEC_OPTIONS, self.OPT_DEST_DIR, self.destinationDir if self.destinationDir else '') # м.б. None, а в файл ложить None низя!
         self.cfg.set(self.SEC_OPTIONS, self.OPT_IF_EXISTS, self.FEXISTS_OPTIONS_STR[self.ifFileExists])
         self.cfg.set(self.SEC_OPTIONS, self.OPT_CLOSE_IF_SUCCESS, str(self.closeIfSuccess))
+
+    def save(self):
+        """Сохранение настроек.
+        В случае ошибки генерирует исключение."""
+
+        # секция src-dirs
+        self.__save_config_srcdirs()
+
+        # секция dest-dirs
+        self.__save_config_destdirs()
+
+        # секция options
+        self.__save_config_options()
 
         # секции aliases и templates
         self.__save_config_aliases()
@@ -544,6 +578,7 @@ class Environment():
   closeIfSuccess = %s
   sourceDirs = %s
   destinationDir = "%s"
+  destinationDirs = %s
   ifFileExists = %s
   knownFileTypes:%s
   aliases = %s
@@ -553,6 +588,7 @@ class Environment():
     self.closeIfSuccess,
     str(self.sourceDirs),
     self.destinationDir,
+    str(self.destinationDirs),
     self.FEXISTS_OPTIONS_STR[self.ifFileExists],
     self.knownFileTypes,
     self.aliases,
@@ -571,9 +607,9 @@ if __name__ == '__main__':
         print('** %s' % str(ex))
         exit(1)
 
-    #print(env)
-    tpl = env.get_template('canon eos 5d')
-    print('template:', tpl, repr(tpl))
+    print(env)
+    #tpl = env.get_template('canon eos 5d')
+    #print('template:', tpl, repr(tpl))
 
     #env.save()
 
