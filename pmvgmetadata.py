@@ -234,12 +234,15 @@ class FileMetadata():
     __FLD_NAMES = ('FILETYPE', 'MODEL', 'PREFIX', 'NUMBER',
         'YEAR', 'MONTH', 'DAY', 'HOUR', 'MINUTE', 'SECOND')
 
-    def __str__(self):
+    def __repr__(self):
         """Для отладки"""
 
-        r = ['fileName="%s"' % self.fileName, 'fileExt="%s"' % self.fileExt]
+        r = ['fileName="%s"' % self.fileName,
+             'fileExt="%s"' % self.fileExt,
+             'fileSize=%d' % self.fileSize]
+
         r += (map(lambda f: '%s="%s"' % (self.__FLD_NAMES[f[0]], f[1]), enumerate(self.fields)))
-        return '\n'.join(r)
+        return '%s(%s)' % (self.__class__.__name__, '\n'.join(r))
 
 
 if __name__ == '__main__':

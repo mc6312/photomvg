@@ -460,8 +460,8 @@ class SettingsDialog():
         if itr is not None:
             destdir = self.destdirlist.store.get_value(itr, self.DDCOL_DESTDIR)
 
-            if msg_dialog(self.dlg, 'Удаление каталога назначения',
-                'Удалить каталог "%s" из списка?' % destdir,
+            if msg_dialog(self.dlg, 'Удаление каталога назначения из списка',
+                'Убрать каталог "%s" из списка?' % destdir,
                 Gtk.MessageType.QUESTION, Gtk.ButtonsType.YES_NO) != Gtk.ResponseType.YES:
                 return
 

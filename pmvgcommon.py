@@ -19,7 +19,7 @@
 
 
 TITLE = 'PhotoMVG'
-VERSION = '2.06'
+VERSION = '2.07'
 TITLE_VERSION = '%s v%s' % (TITLE, VERSION)
 URL = 'http://github.com/mc6312/photomvg'
 COPYRIGHT = '(c) 2019 MC-6312'
@@ -69,7 +69,7 @@ def filesize_round_to_mb(n):
     Если значение больше 0, но меньше 1 MB - возвращается 1."""
 
     mb = round(n / __MEBIBYTE_F)
-    mb = __MEBIBYTE_F if mb < __MEBIBYTE_F else mb
+    mb = 1.0 if mb < 1.0 else mb
     return int(mb)
 
 
@@ -147,8 +147,8 @@ def same_dir(dir1, dir2):
 if __name__ == '__main__':
     print('[debugging %s]' % __file__)
 
-    for ix, c in enumerate(INVALID_TEMPLATE_CHARS):
-        print(f'{ix}: "{c}"')
+    print(filesize_round_to_mb(1000000))
+
     exit(0)
 
     print(filename_validate('/some/filename:text', None))

@@ -211,6 +211,8 @@ class MainWnd():
         # обновляется при запуске методов filetree_refresh() и filetree_check_all()
         self.filetree.fileBytesTotal = 0
 
+        self.txtNewFileNames = uibldr.get_object('txtNewFileNames')
+
         # костыль для обработки DnD, см. filetree_drag_data_received(), filetree_drag_end()
         self.filetreedroprow = None
 
@@ -241,11 +243,21 @@ class MainWnd():
         #
         # PAGE_PROGRESS, страница выполнения
         #
-        self.txtProgressOperation, self.pbarScanSrcDirs = get_ui_widgets(uibldr,
-            ('txtProgressOperation', 'pbarScanSrcDirs'))
+        self.txtProgressOperation, self.pbarProgress, self.txtProgressMsg, self.txtProgressMsg2 = get_ui_widgets(uibldr,
+            ('txtProgressOperation', 'pbarProgress', 'txtProgressMsg', 'txtProgressMsg2'))
 
+        # флаг прерывания поиска файлов и копирования
         self.jobRunning = False
+
+        # присваивается True, если нажата кнопка "Прервать"
+        self.jobCancelled = False
+
+        # номер страницы, на которую будет переключать UI метод job_end()
+        # в случае успешного завершения работы (в ситуации "файлы не найдены" - тоже)
         self.jobEndPage = 0
+
+        # номер страницы, на которую переключается UI в случае прерывания задачи
+        self.jobCancelledPage = 0
 
         self.jobCtxSkippedFiles = 0
         self.jobCtxFileIndex = 0.0
@@ -361,6 +373,9 @@ class MainWnd():
                             self.FTCOL_ICON,
                             self.icons[info.ftype][True])
 
+                    self.filetree.store.set_value(itr, self.FTCOL_TOOLTIP,
+                        'Содержит файлов: <b>%d</b>\nОбъём файлов: <b>%s МБ</b>' % (nSubFiles, filesize_to_mb_str(nSubBytes)))
+
                     nDuplicates += nSubDups
                     nFiles += nSubFiles
                     nFileBytes += nSubBytes
@@ -378,6 +393,11 @@ class MainWnd():
         filetree.filesWithDuplicates."""
 
         self.filetree.filesTotal, self.filetree.filesWithDuplicates, self.filetree.fileBytesTotal = self.filetree_check_node(None, True)
+
+        self.txtNewFileNames.set_markup('(всего файлов: <b>%d</b>, с одинаковыми именами: <b>%d</b>, общий размер: <b>%s МБ</b>)' % (
+            self.filetree.filesTotal,
+            self.filetree.filesWithDuplicates,
+            filesize_to_mb_str(self.filetree.fileBytesTotal)))
 
     def filetree_name_edited(self, crt, path, fname):
         """Имя файла в столбце treeview изменено.
@@ -448,8 +468,9 @@ class MainWnd():
         """Рекурсивный обход каталога с заполнением дерева filetree.store.
         fromdirname - путь к каталогу,
         toiter      - экземпляр Gtk.TreeIter, указывающий на позицию в filetree.store,
-        progress    - None или функция с двумя параметрами:
-                        text        - сообщение, отображаемое на прогрессбаре,
+        progress    - None или функция с тре параметрами:
+                        text        - сообщение, отображаемое над прогрессбаром,
+                        text2       - сообщение, отображаемое под прогрессбаром,
                         fraction    - -1 или значение от 0.0 до 1.0.
                       Функция должна возвращать булевское значение:
                       True - продолжить, False - прервать работу."""
@@ -463,7 +484,9 @@ class MainWnd():
         if os.access(fromdirname, os.F_OK | os.R_OK):
             for rootdir, subdirs, files in os.walk(fromdirname):
                 if progress is not None:
-                    if not progress(fromdirname, -1):
+                    if not progress('Поиск в "%s"' % rootdir,
+                                    'Найдено файлов: %d' % self.filetree.filesTotal,
+                                    -1):
                         # из гуЯ нажали кнопку "прервать"
                         return
 
@@ -570,15 +593,7 @@ class MainWnd():
         """Обход каталогов из списка srcdirlist.store с заполнением дерева
         filetree.store."""
 
-        self.env.currentTemplateName = self.cboxTemplate.get_active_id()
-        if self.env.currentTemplateName:
-            # не пустая строка и не None
-            self.templateOverride = self.env.templates[self.env.currentTemplateName]
-        else:
-            # используем автомат по модели камеры, как в предыдущих версиях
-            self.templateOverride = None
-
-        self.job_begin('Поиск файлов...', self.PAGE_DESTFNAMES)
+        self.job_begin('Поиск файлов...', self.PAGE_DESTFNAMES, self.PAGE_START)
 
         self.filetree.refresh_begin()
 
@@ -590,26 +605,34 @@ class MainWnd():
         itr = self.srcdirlist.store.get_iter_first()
 
         try:
-            while itr is not None:
-                #!!!
-                if not self.jobRunning:
-                    break
+            try:
+                while itr is not None:
+                    #!!!
+                    if not self.jobRunning:
+                        break
 
-                chkd, dirname = self.srcdirlist.store.get(itr, self.SDCOL_SEL, self.SDCOL_DIRNAME)
-                if chkd:
-                    self.__filetree_scan_dir_to(dirname, None, self.job_progress)
+                    chkd, dirname = self.srcdirlist.store.get(itr, self.SDCOL_SEL, self.SDCOL_DIRNAME)
+                    if chkd:
+                        self.__filetree_scan_dir_to(dirname, None, self.job_progress)
 
-                itr = self.srcdirlist.store.iter_next(itr)
+                    itr = self.srcdirlist.store.iter_next(itr)
+
+            except Exception as ex:
+                print_exception()
+                self.job_message(True, 'Во время поиска произошла ошибка.')
+                #self.jobCancelled = True
+                #self.jobCancelledPage = self.PAGE_FINAL
         finally:
             self.filetree.refresh_end()
 
-            if self.filetree.store.iter_n_children():
-                self.filetree_check_all()
-                self.jobEndPage = self.PAGE_DESTFNAMES
-            else:
-                self.jobEndPage = self.PAGE_FINAL
-                self.txtFinalPageTitle.set_text('Поиск файлов завершён')
-                self.txtFinalPageMsg.set_text('Подходящие файлы не найдены.')
+            if not self.jobCancelled:
+                if self.filetree.store.iter_n_children():
+                    self.filetree_check_all()
+                    self.jobEndPage = self.PAGE_DESTFNAMES
+                else:
+                    self.jobEndPage = self.PAGE_FINAL
+                    self.txtFinalPageTitle.set_text('Поиск файлов завершён')
+                    self.txtFinalPageMsg.set_text('Подходящие файлы не найдены.')
 
             self.job_end()
 
@@ -689,15 +712,31 @@ class MainWnd():
         # подтверждения пока что спрашивать не будем
         sel = self.filetree.selection.get_selected_rows()
 
+        def __remove_empty_nodes(itr):
+            """Рекурсивное "взад" удаление пустых элементов"""
+
+            if itr is not None:
+                info = self.filetree.store.get_value(itr, self.FTCOL_INFO)
+                if info.ftype == FileTypes.DIRECTORY and self.filetree.store.iter_n_children(itr) == 0:
+                    parent = self.filetree.store.iter_parent(itr)
+                    self.filetree.store.remove(itr)
+
+                    __remove_empty_nodes(parent)
+
         if sel is not None:
             for path in reversed(sel[1]):
                 try:
                     itr = self.filetree.store.get_iter(path)
+
+                    parent = self.filetree.store.iter_parent(itr)
                     self.filetree.store.remove(itr)
+                    __remove_empty_nodes(parent)
                 except ValueError:
                     # get_iter() падает с исключением, если path указывает
                     # на уже удалённый элемент!
                     pass
+
+            self.filetree_check_all()
 
     def app_configure(self):
         """Вызов диалога настроек"""
@@ -733,6 +772,15 @@ class MainWnd():
                 markup_escape_text(self.env.templates[tname].get_display_str()))))
 
         self.cboxTemplate.set_active_id(selt)
+
+    def srcdirlist_template_changed(self, cbox):
+        self.env.currentTemplateName = cbox.get_active_id()
+        if self.env.currentTemplateName:
+            # не пустая строка и не None
+            self.templateOverride = self.env.templates[self.env.currentTemplateName]
+        else:
+            # используем автомат по модели камеры, как в предыдущих версиях
+            self.templateOverride = None
 
     def srcdirlist_flush_to_env(self):
         """Копирование списка исходных каталогов в env."""
@@ -898,13 +946,21 @@ class MainWnd():
             self.jobCtxProgressSkip = self.JOB_PROGRESS_SKIP
             return True
 
-    def job_begin(self, title, endpage):
+    def job_begin(self, title, endpage, cancelpage):
+        """Подготовка к запуску задания - блокировка UI и т.п.
+
+        title       - заголовок страницы с прогрессом,
+        endpage     - страница, на которую переключаться при успешном завершении,
+        cancelpage  - страница, на которую переключаться при отмене."""
+
         self.txtProgressOperation.set_text(title)
-        self.pbarScanSrcDirs.set_fraction(0.0)
+        self.pbarProgress.set_fraction(0.0)
 
         self.pages.set_current_page(self.PAGE_PROGRESS)
         self.jobEndPage = endpage
+        self.jobCancelledPage = cancelpage
         self.jobRunning = True
+        self.jobCancelled = False
 
         self.jobCtxSkippedFiles = 0
         self.jobCtxFileIndex = 0.0
@@ -917,13 +973,14 @@ class MainWnd():
         self.errorlist.view.set_model(None)
         self.errorlist.store.clear()
 
-    def job_progress(self, txt, fraction):
-        self.pbarScanSrcDirs.set_text(txt)
+    def job_progress(self, txt, txt2, fraction):
+        self.txtProgressMsg.set_text(txt)
+        self.txtProgressMsg2.set_text(txt2)
 
         if fraction >= 0.0:
-            self.pbarScanSrcDirs.set_fraction(fraction)
+            self.pbarProgress.set_fraction(fraction)
         else:
-            self.pbarScanSrcDirs.pulse()
+            self.pbarProgress.pulse()
 
         flush_gtk_events()
 
@@ -933,20 +990,25 @@ class MainWnd():
         self.jobRunning = False
         self.headerBar.set_sensitive(True)
 
-        nmsgs = self.errorlist.store.iter_n_children()
-
-        if self.jobEndPage == self.PAGE_FINAL and nmsgs > 0:
-            self.errorlist.view.set_model(self.errorlist.store)
-            elv = True
+        if self.jobCancelled:
+            self.jobEndPage = self.jobCancelledPage
         else:
-            elv = False
+            nmsgs = self.errorlist.store.iter_n_children()
 
-        self.errorlistswnd.set_visible(elv)
+            if self.jobEndPage == self.PAGE_FINAL and nmsgs > 0:
+                self.errorlist.view.set_model(self.errorlist.store)
+                elv = True
+            else:
+                elv = False
+
+            self.errorlistswnd.set_visible(elv)
 
         self.pages.set_current_page(self.jobEndPage)
 
     def job_stop(self, widget):
+        """Нажата кнопка "Прервать"."""
         self.jobRunning = False
+        self.jobCancelled = True
 
     def fileops_update_mode_settings(self):
         if self.env.modeMoveFiles:
@@ -1033,7 +1095,7 @@ class MainWnd():
         fileopFunction = shutil.move if self.env.modeMoveFiles else shutil.copy
         fileopVerb = 'переместить' if self.env.modeMoveFiles else 'скопировать'
 
-        self.job_begin(sTitle, self.PAGE_FINAL)
+        self.job_begin(sTitle, self.PAGE_FINAL, self.PAGE_DESTFNAMES)
         try:
             try:
                 # пошли надругаться над файлами
@@ -1047,7 +1109,7 @@ class MainWnd():
 
                         if self.job_skip_progress():
                             # проверяем, не нажата ли кнопка "прервать"
-                            if not self.job_progress('', self.jobCtxFileIndex / self.filetree.filesTotal):
+                            if not self.job_progress('', '', self.jobCtxFileIndex / self.filetree.filesTotal):
                                 raise JobCancelled
 
                         fdestname, info = self.filetree.store.get(itr, self.FTCOL_FNAME, self.FTCOL_INFO)
