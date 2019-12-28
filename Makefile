@@ -1,7 +1,7 @@
 packer = 7z
 pack = $(packer) a -mx=9
 arcx = .7z
-docs = COPYING Changelog README.md
+docs = COPYING Changelog README.md TODO
 srcversion = pmvgcommon
 version = $(shell python3 -c 'from $(srcversion) import VERSION; print(VERSION)')
 title_version = $(shell python3 -c 'from $(srcversion) import TITLE_VERSION; print(TITLE_VERSION)')
@@ -10,7 +10,8 @@ basename = photomvg
 zipname = $(basename).zip
 arcname = $(basename)$(arcx)
 srcarcname = $(basename)-src$(arcx)
-srcs = __main__.py photomvg.py gtktools.py photomvg.ui pmvg*.py pmvg*.ui images/*
+mainsrcs = __main__.py photomvg.py gtktools.py pmvg*.py
+srcs = $(mainsrcs) photomvg.ui pmvg*.ui images/*
 backupdir = ~/shareddocs/pgm/python/
 
 app:
@@ -41,3 +42,5 @@ docview:
 	#rm $(docname)
 show-branch:
 	@echo "$(branch)"
+todo:
+	pytodo.py $(mainsrcs) >TODO

@@ -30,6 +30,8 @@ from pmvgtemplates import *
 
 from os.path import sep as os_path_sep
 
+#@TODO сделать UI для редактирования списков расширений
+
 
 class SettingsDialog():
     TPLCOL_MASK, TPLCOL_DISPLAY, TPLCOL_TEMPLATE = range(3)
@@ -94,6 +96,14 @@ class SettingsDialog():
         self.dlgDDirChoose = uibldr.get_object('dlgDDirChoose')
         self.destdirlist = TreeViewShell(uibldr.get_object('destdirsview'))
         self.destdirlist.sortColumn = self.DDCOL_DESTDIR
+
+        #
+        # known-*-types
+        #
+        self.filetypeentry = dict()
+
+        for ftype, entryname in ((FileTypes.IMAGE, 'imgtypesentry'), (FileTypes.RAW_IMAGE, 'rawimgtypesentry'), (FileTypes.VIDEO, 'videotypesentry')):
+            self.filetypeentry[ftype] = uibldr.get_object(entryname)
 
         #
         self.cbtnCloseIfSuccess = uibldr.get_object('cbtnCloseIfSuccess')
@@ -425,6 +435,13 @@ class SettingsDialog():
 
             itr = self.destdirlist.store.iter_next(itr)
 
+    def __filetypes_from_env(self):
+        for ftype, fexts in self.env.knownFileTypes.knownExtensions.items():
+            self.filetypeentry[ftype].set_text(' '.join(sorted(fexts)))
+
+    def __filetypes_to_env(self):
+        pass
+
     def destdir_add(self, btn):
         self.dlgDDirChoose.show()
         r = self.dlgDDirChoose.run()
@@ -477,6 +494,8 @@ class SettingsDialog():
         self.__aliaslist_from_env()
         self.__destdirlist_from_env()
 
+        self.__filetypes_from_env()
+
         self.cbtnCloseIfSuccess.set_active(self.env.closeIfSuccess)
 
         #
@@ -490,6 +509,7 @@ class SettingsDialog():
             self.__templatelist_to_env()
             self.__aliaslist_to_env()
             self.__destdirlist_to_env()
+            self.__filetypes_to_env()
             self.env.closeIfSuccess = self.cbtnCloseIfSuccess.get_active()
             #!!!
             self.env.save()

@@ -51,7 +51,7 @@ class FileTypes():
         }
 
     def __init__(self):
-        self.knownExtensions = self.DEFAULT_FILE_EXTENSIONS
+        self.knownExtensions = self.DEFAULT_FILE_EXTENSIONS.copy()
 
     def add_extensions(self, ftype, extensions):
         """Добавление расширений в словарь известных расширений.

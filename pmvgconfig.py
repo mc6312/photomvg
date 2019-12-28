@@ -399,7 +399,7 @@ class Environment():
             kts = filter(None, self.cfg.getstr(self.SEC_OPTIONS, optname).lower().split(None))
 
             exts = set()
-
+            #@TODO вынести обработку строки с расширениями в отдельный метод для унификации с UI
             for ktype in kts:
                 if not ktype.startswith('.'):
                     ktype = '.%s' % ktype
