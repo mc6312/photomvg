@@ -396,17 +396,45 @@ class Environment():
         for ftype in self.OPT_KNOWN_FILE_TYPES:
             optname = self.OPT_KNOWN_FILE_TYPES[ftype]
 
-            kts = filter(None, self.cfg.getstr(self.SEC_OPTIONS, optname).lower().split(None))
-
-            exts = set()
-            #@TODO вынести обработку строки с расширениями в отдельный метод для унификации с UI
-            for ktype in kts:
-                if not ktype.startswith('.'):
-                    ktype = '.%s' % ktype
-
-                exts.add(ktype)
+            ok, exts = self.extensions_from_str(self.cfg.getstr(self.SEC_OPTIONS, optname))
+            if not ok:
+                raise self.Error(self.E_BADVAL % (self.OPT_IF_EXISTS, self.SEC_OPTIONS, self.configPath, exts))
 
             self.knownFileTypes.add_extensions(ftype, exts)
+
+    def extensions_from_str(self, s):
+        """Преобразование строки вида '.ext .ext' в set, с проверкой
+        правильности.
+        Возвращает кортеж из двух элементов:
+        1й: булевское значение, True в случае успеха;
+        2й: если 1й==True - множество из строк,
+            если 1й==False - строка с сообщением об ошибке."""
+
+        extlst = filter(None, s.lower().split(None))
+
+        exts = set()
+
+        for ext in extlst:
+            if ext.endswith('.'):
+                return (False, 'расширение не должно заканчиваться точкой')
+
+            if tuple(filter(lambda c: c in INVALID_FNAME_CHARS, ext)):
+                return (False, 'расширение содержит недопустимые символы')
+
+            if not ext.startswith('.'):
+                ext = '.%s' % ext
+
+            if len(ext) < 2:
+                return (False, 'пустое расширение')
+
+            exts.add(ext)
+
+        return (True, exts)
+
+    def extensions_to_str(self, exts):
+        """Преобразование множества строк exts в строку (разделители - пробелы)."""
+
+        return ' '.join(sorted(exts))
 
     def __read_config_aliases(self):
         """Разбор секции aliases файла настроек"""
@@ -513,6 +541,14 @@ class Environment():
         self.cfg.set(self.SEC_OPTIONS, self.OPT_CLOSE_IF_SUCCESS, str(self.closeIfSuccess))
         self.cfg.set(self.SEC_OPTIONS, self.OPT_CUR_TEMPLATE_NAME,
             self.currentTemplateName if self.currentTemplateName else '')
+
+        #
+        # known-*-types
+        #
+        for ftype in self.OPT_KNOWN_FILE_TYPES:
+            self.cfg.set(self.SEC_OPTIONS,
+                         self.OPT_KNOWN_FILE_TYPES[ftype],
+                         self.extensions_to_str(self.knownFileTypes.knownExtensions[ftype]))
 
     def save(self):
         """Сохранение настроек.

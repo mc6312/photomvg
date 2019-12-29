@@ -101,9 +101,18 @@ class SettingsDialog():
         # known-*-types
         #
         self.filetypeentry = dict()
+        # ключи - FileTypes.IMAGE/...
+        # значения - экземпляры Gtk.Entry
 
-        for ftype, entryname in ((FileTypes.IMAGE, 'imgtypesentry'), (FileTypes.RAW_IMAGE, 'rawimgtypesentry'), (FileTypes.VIDEO, 'videotypesentry')):
+        self.filetypename = dict()
+        # ключи - FileTypes.IMAGE/...
+        # значения - строки с названиями полей
+
+        for ftype, entryname, labelname in ((FileTypes.IMAGE, 'imgtypesentry', 'imgtypeslabel'),
+                                            (FileTypes.RAW_IMAGE, 'rawimgtypesentry', 'rawimgtypeslabel'),
+                                            (FileTypes.VIDEO, 'videotypesentry', 'videotypeslabel')):
             self.filetypeentry[ftype] = uibldr.get_object(entryname)
+            self.filetypename[ftype] = uibldr.get_object(labelname).get_label()
 
         #
         self.cbtnCloseIfSuccess = uibldr.get_object('cbtnCloseIfSuccess')
@@ -437,10 +446,24 @@ class SettingsDialog():
 
     def __filetypes_from_env(self):
         for ftype, fexts in self.env.knownFileTypes.knownExtensions.items():
-            self.filetypeentry[ftype].set_text(' '.join(sorted(fexts)))
+            self.filetypeentry[ftype].set_text(self.env.extensions_to_str(fexts))
 
     def __filetypes_to_env(self):
-        pass
+        for ftype in self.env.knownFileTypes.knownExtensions:
+            ok, exts = self.env.extensions_from_str(self.filetypeentry[ftype].get_text())
+
+            if not ok:
+                msg_dialog(self.dlg,
+                    'Ошибка',
+                    'Ошибка в поле "%s" - %s' % (self.filetypename[ftype], exts))
+                return False
+            else:
+                # принудительно всобачиваем содержимое встроенного списка типов!
+                exts.update(FileTypes.DEFAULT_FILE_EXTENSIONS[ftype])
+                self.env.knownFileTypes.knownExtensions[ftype] = exts
+
+        # все поля без ошибок
+        return True
 
     def destdir_add(self, btn):
         self.dlgDDirChoose.show()
@@ -500,19 +523,27 @@ class SettingsDialog():
 
         #
         self.dlg.show()
-        r = self.dlg.run()
-        self.dlg.hide()
 
-        r = r == Gtk.ResponseType.OK
-        if r:
+        while True:
+            r = self.dlg.run()
+            if r != Gtk.ResponseType.OK:
+                # Cancel/Close/...
+                break
+
             # получение данных из виджетов
             self.__templatelist_to_env()
             self.__aliaslist_to_env()
             self.__destdirlist_to_env()
-            self.__filetypes_to_env()
+
+            if not self.__filetypes_to_env():
+                continue
+
             self.env.closeIfSuccess = self.cbtnCloseIfSuccess.get_active()
             #!!!
             self.env.save()
+            break
+
+        self.dlg.hide()
 
         return r
 

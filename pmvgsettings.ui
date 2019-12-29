@@ -110,7 +110,7 @@
     </columns>
   </object>
   <object class="GtkDialog" id="dlgSettings">
-    <property name="width_request">512</property>
+    <property name="width_request">800</property>
     <property name="height_request">480</property>
     <property name="can_focus">False</property>
     <property name="title" translatable="yes">Настройки</property>
@@ -262,9 +262,7 @@
                             </child>
                             <child>
                               <object class="GtkTreeViewColumn" id="colTplName">
-                                <property name="sizing">autosize</property>
                                 <property name="title" translatable="yes">Маска шаблона</property>
-                                <property name="expand">True</property>
                                 <child>
                                   <object class="GtkCellRendererText" id="crTplName">
                                     <property name="ellipsize">middle</property>
@@ -401,9 +399,7 @@
                             </child>
                             <child>
                               <object class="GtkTreeViewColumn" id="colCamModel">
-                                <property name="sizing">autosize</property>
                                 <property name="title" translatable="yes">Модель камеры</property>
-                                <property name="expand">True</property>
                                 <child>
                                   <object class="GtkCellRendererText" id="crCamModel">
                                     <property name="ellipsize">middle</property>
@@ -580,7 +576,7 @@
                     <property name="row_spacing">4</property>
                     <property name="column_spacing">4</property>
                     <child>
-                      <object class="GtkLabel">
+                      <object class="GtkLabel" id="imgtypeslabel">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="label" translatable="yes">Изображения:</property>
@@ -592,7 +588,7 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkLabel">
+                      <object class="GtkLabel" id="rawimgtypeslabel">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="label" translatable="yes">Изображения RAW:</property>
@@ -604,7 +600,7 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkLabel">
+                      <object class="GtkLabel" id="videotypeslabel">
                         <property name="visible">True</property>
                         <property name="can_focus">False</property>
                         <property name="label" translatable="yes">Видео:</property>
