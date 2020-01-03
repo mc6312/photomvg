@@ -27,6 +27,8 @@ import datetime
 from collections import namedtuple
 import re
 
+from pmvgcommon import *
+
 
 class FileTypes():
     """Вспомогательный класс для определения типа файла по расширению."""
@@ -53,7 +55,47 @@ class FileTypes():
         }
 
     def __init__(self):
-        self.knownExtensions = self.DEFAULT_FILE_EXTENSIONS.copy()
+        self.knownExtensions = dict()
+
+        # иначе хитрожопый питон может впихнуть ссылку на DEFAULT_FILE_EXTENSIONS вместо копии
+        for ftype in self.DEFAULT_FILE_EXTENSIONS:
+            self.knownExtensions[ftype] = self.DEFAULT_FILE_EXTENSIONS[ftype].copy()
+
+    @staticmethod
+    def extensions_from_str(s):
+        """Преобразование строки вида '.ext .ext' в set, с проверкой
+        правильности.
+        Возвращает кортеж из двух элементов:
+        1й: булевское значение, True в случае успеха;
+        2й: если 1й==True - множество из строк,
+            если 1й==False - строка с сообщением об ошибке."""
+
+        extlst = filter(None, s.lower().split(None))
+
+        exts = set()
+
+        for ext in extlst:
+            if ext.endswith('.'):
+                return (False, 'расширение не должно заканчиваться точкой')
+
+            if tuple(filter(lambda c: c in INVALID_FNAME_CHARS, ext)):
+                return (False, 'расширение содержит недопустимые символы')
+
+            if not ext.startswith('.'):
+                ext = '.%s' % ext
+
+            if len(ext) < 2:
+                return (False, 'пустое расширение')
+
+            exts.add(ext)
+
+        return (True, exts)
+
+    @staticmethod
+    def extensions_to_str(exts):
+        """Преобразование множества строк exts в строку (разделители - пробелы)."""
+
+        return ' '.join(sorted(exts))
 
     def add_extensions(self, ftype, extensions):
         """Добавление расширений в словарь известных расширений.
@@ -85,8 +127,8 @@ class FileTypes():
         """Костыль для отладки"""
 
         return '%s(%s)' % (self.__class__.__name__,
-            '\n'.join(map(lambda ft: '%s: %s' % (self.LONGSTR[ft],
-                          ', '.join(self.knownExtensions[ft])),
+            '\n'.join(map(lambda ft: '%s: "%s"' % (self.LONGSTR[ft],
+                          ' '.join(self.knownExtensions[ft])),
                       self.knownExtensions))
             )
 

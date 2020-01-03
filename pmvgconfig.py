@@ -402,7 +402,7 @@ class Environment():
         for ftype in self.OPT_KNOWN_FILE_TYPES:
             optname = self.OPT_KNOWN_FILE_TYPES[ftype]
 
-            ok, exts = self.extensions_from_str(self.cfg.getstr(self.SEC_OPTIONS, optname))
+            ok, exts = FileTypes.extensions_from_str(self.cfg.getstr(self.SEC_OPTIONS, optname))
             if not ok:
                 raise self.Error(self.E_BADVAL % (self.OPT_IF_EXISTS, self.SEC_OPTIONS, self.configPath, exts))
 
@@ -422,40 +422,6 @@ class Environment():
                 raise self.Error(self.E_BADVAL2 % (self.OPT_IF_EXISTS, self.SEC_OPTIONS, self.configPath))
 
             self.searchFileTypes.add(FileTypes.STR_TO_TYPE[sftype])
-
-    def extensions_from_str(self, s):
-        """Преобразование строки вида '.ext .ext' в set, с проверкой
-        правильности.
-        Возвращает кортеж из двух элементов:
-        1й: булевское значение, True в случае успеха;
-        2й: если 1й==True - множество из строк,
-            если 1й==False - строка с сообщением об ошибке."""
-
-        extlst = filter(None, s.lower().split(None))
-
-        exts = set()
-
-        for ext in extlst:
-            if ext.endswith('.'):
-                return (False, 'расширение не должно заканчиваться точкой')
-
-            if tuple(filter(lambda c: c in INVALID_FNAME_CHARS, ext)):
-                return (False, 'расширение содержит недопустимые символы')
-
-            if not ext.startswith('.'):
-                ext = '.%s' % ext
-
-            if len(ext) < 2:
-                return (False, 'пустое расширение')
-
-            exts.add(ext)
-
-        return (True, exts)
-
-    def extensions_to_str(self, exts):
-        """Преобразование множества строк exts в строку (разделители - пробелы)."""
-
-        return ' '.join(sorted(exts))
 
     def __read_config_aliases(self):
         """Разбор секции aliases файла настроек"""
@@ -569,7 +535,7 @@ class Environment():
         for ftype in self.OPT_KNOWN_FILE_TYPES:
             self.cfg.set(self.SEC_OPTIONS,
                          self.OPT_KNOWN_FILE_TYPES[ftype],
-                         self.extensions_to_str(self.knownFileTypes.knownExtensions[ftype]))
+                         FileTypes.extensions_to_str(self.knownFileTypes.knownExtensions[ftype]))
 
         self.cfg.set(self.SEC_OPTIONS,
                      self.OPT_SEARCH_FILE_TYPES,

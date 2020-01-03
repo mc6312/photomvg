@@ -285,13 +285,15 @@ class MainWnd():
         #
         self.dlgAbout = uibldr.get_object('dlgAbout')
         self.dlgAbout.set_program_name(TITLE)
-        self.dlgAbout.set_version(VERSION)
+        self.dlgAbout.set_version('v%s' % VERSION)
         self.dlgAbout.set_copyright(COPYRIGHT)
         self.dlgAbout.set_website(URL)
         self.dlgAbout.set_website_label(URL)
+
+        logoSizePx = Gtk.IconSize.lookup(Gtk.IconSize.DIALOG)[1] * 3
+
         self.dlgAbout.set_logo(resldr.load_pixbuf('images/logo.svg',
-            # размер пока приколотим гвоздями
-            128, 128,
+            logoSizePx, logoSizePx,
             'image-x-generic'))
 
         #

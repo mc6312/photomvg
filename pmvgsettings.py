@@ -446,11 +446,11 @@ class SettingsDialog():
 
     def __filetypes_from_env(self):
         for ftype, fexts in self.env.knownFileTypes.knownExtensions.items():
-            self.filetypeentry[ftype].set_text(self.env.extensions_to_str(fexts))
+            self.filetypeentry[ftype].set_text(FileTypes.extensions_to_str(fexts))
 
     def __filetypes_to_env(self):
         for ftype in self.env.knownFileTypes.knownExtensions:
-            ok, exts = self.env.extensions_from_str(self.filetypeentry[ftype].get_text())
+            ok, exts = FileTypes.extensions_from_str(self.filetypeentry[ftype].get_text())
 
             if not ok:
                 msg_dialog(self.dlg,
@@ -558,5 +558,3 @@ if __name__ == '__main__':
     dlg = SettingsDialog(None, env)
     if dlg.run():
         print(env)
-
-    print

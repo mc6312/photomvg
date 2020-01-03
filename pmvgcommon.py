@@ -19,10 +19,10 @@
 
 
 TITLE = 'PhotoMVG'
-VERSION = '2.09'
+VERSION = '2.10'
 TITLE_VERSION = '%s v%s' % (TITLE, VERSION)
 URL = 'http://github.com/mc6312/photomvg'
-COPYRIGHT = '(c) 2019 MC-6312'
+COPYRIGHT = '(c) 2019-2020 MC-6312'
 
 
 # для отладки д.б. True - в этом случае реальные файловые операции не производятся
