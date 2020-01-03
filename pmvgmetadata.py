@@ -37,6 +37,8 @@ class FileTypes():
     STR = {IMAGE:'p', RAW_IMAGE:'p', VIDEO:'v'}
     LONGSTR = {IMAGE:'photo', RAW_IMAGE:'raw', VIDEO:'video'}
 
+    STR_TO_TYPE = dict(map(lambda v: (v[1], v[0]), LONGSTR.items()))
+
     DEFAULT_FILE_EXTENSIONS = {
         # список форматов RAW, спионеренный из RawTherapee
         RAW_IMAGE: {'.nef', '.cr2', '.cr3', '.crf',

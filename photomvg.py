@@ -121,7 +121,7 @@ class MainWnd():
         self.wndMain.set_icon(appicon)
 
         self.headerBar = uibldr.get_object('headerBar')
-        self.headerBar.set_title('PhotoMVG')
+        self.headerBar.set_title('PhotoMVG%s' % ('' if not DRY_RUN else ' [режим отладки]'))
         self.headerBar.set_subtitle('v%s' % VERSION)
 
         uibldr.get_object('imgMainMenu').set_from_pixbuf(
@@ -173,6 +173,12 @@ class MainWnd():
         self.dlgSDirChoose = uibldr.get_object('dlgSDirChoose')
 
         self.btnScanSrcDirs = uibldr.get_object('btnScanSrcDirs')
+
+        for cbox, ftype in (('searchimagescbox', FileTypes.IMAGE), ('searchrawimagescbox', FileTypes.RAW_IMAGE), ('searchvideocbox', FileTypes.VIDEO)):
+            cbox = uibldr.get_object(cbox)
+
+            cbox.set_active(ftype in self.env.searchFileTypes)
+            cbox.connect('toggled', self.srcdirlist_cboxsearchfiletype_toggled, ftype)
 
         # заполняем список
         self.srcdirlist.nSelected = 0
@@ -394,9 +400,9 @@ class MainWnd():
 
         self.filetree.filesTotal, self.filetree.filesWithDuplicates, self.filetree.fileBytesTotal = self.filetree_check_node(None, True)
 
-        self.txtNewFileNames.set_markup('(всего файлов: <b>%d</b>, с одинаковыми именами: <b>%d</b>, общий размер: <b>%s МБ</b>)' % (
+        self.txtNewFileNames.set_markup('(всего файлов: <b>%d</b>%s, общий размер: <b>%s МБ</b>)' % (
             self.filetree.filesTotal,
-            self.filetree.filesWithDuplicates,
+            (' ' if not self.filetree.filesWithDuplicates else ', с одинаковыми именами: <b>%d</b>' % self.filetree.filesWithDuplicates),
             filesize_to_mb_str(self.filetree.fileBytesTotal)))
 
     def filetree_name_edited(self, crt, path, fname):
@@ -518,6 +524,10 @@ class MainWnd():
                         # файлы неизвестных типов пока игнорируем
                         continue
 
+                    if ftype not in self.env.searchFileTypes:
+                        # файлы не выбранных в UI типов игнорируем
+                        continue
+
                     try:
                         fmetadata = FileMetadata(fpath, self.env.knownFileTypes)
                     except Exception as ex:
@@ -592,6 +602,10 @@ class MainWnd():
     def filetree_refresh(self):
         """Обход каталогов из списка srcdirlist.store с заполнением дерева
         filetree.store."""
+
+        if not self.env.searchFileTypes:
+            msg_dialog(self.wndMain, 'Поиск файлов', 'Не указаны типы файлов, которые следует искать.')
+            return
 
         self.job_begin('Поиск файлов...', self.PAGE_DESTFNAMES, self.PAGE_START)
 
@@ -881,6 +895,14 @@ class MainWnd():
             self.srcdirlist_update_sel_all_cbox()
             self.srcdirlist_flush_to_env()
 
+    def srcdirlist_cboxsearchfiletype_toggled(self, cbox, ftype):
+        """Переключен чекбокс типа файла."""
+
+        if cbox.get_active():
+            self.env.searchFileTypes.add(ftype)
+        else:
+            self.env.searchFileTypes.remove(ftype)
+
     def srcdirlist_update_sel_all_cbox(self):
         """Обновление состояния чекбокса на заголовке столбца."""
 
@@ -939,6 +961,8 @@ class MainWnd():
         self.jobCtxFileIndex += 1.0
 
     def job_skip_progress(self):
+        flush_gtk_events()
+
         if self.jobCtxProgressSkip > 0:
             self.jobCtxProgressSkip -= 1
             return False
@@ -1071,7 +1095,11 @@ class MainWnd():
             __stop_msg('Не указан каталог назначения.')
             return
 
-        serr = make_dirs(self.env.destinationDir)
+        if DRY_RUN:
+            serr = None
+        else:
+            serr = make_dirs(self.env.destinationDir)
+
         if serr:
             __stop_msg(serr)
             return
@@ -1092,7 +1120,11 @@ class MainWnd():
             __stop_msg('''В каталоге "%s" недостаточно места для новых файлов.
 Не хватает %s МБ.''' % (self.env.destinationDir, filesize_round_to_mb(self.filetree.fileBytesTotal - destFreeBytes)))
 
-        fileopFunction = shutil.move if self.env.modeMoveFiles else shutil.copy
+        if DRY_RUN:
+            fileopFunction = lambda s, d: d
+        else:
+            fileopFunction = shutil.move if self.env.modeMoveFiles else shutil.copy
+
         fileopVerb = 'переместить' if self.env.modeMoveFiles else 'скопировать'
 
         self.job_begin(sTitle, self.PAGE_FINAL, self.PAGE_DESTFNAMES)
@@ -1118,7 +1150,11 @@ class MainWnd():
 
                             fdestdir = os.path.join(self.env.destinationDir, self.filetree_get_item_dest_dir(itr))
 
-                            serr = make_dirs(fdestdir)
+                            if DRY_RUN:
+                                serr = None
+                            else:
+                                serr = make_dirs(fdestdir)
+
                             if serr:
                                 self.job_message(True, markup_escape_text(serr))
                                 return

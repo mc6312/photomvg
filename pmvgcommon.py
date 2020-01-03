@@ -19,15 +19,23 @@
 
 
 TITLE = 'PhotoMVG'
-VERSION = '2.08'
+VERSION = '2.09'
 TITLE_VERSION = '%s v%s' % (TITLE, VERSION)
 URL = 'http://github.com/mc6312/photomvg'
 COPYRIGHT = '(c) 2019 MC-6312'
 
 
+# для отладки д.б. True - в этом случае реальные файловые операции не производятся
+DRY_RUN = False
+
+
 import os, os.path
 from traceback import format_exception
 from sys import exc_info, stderr
+
+
+if DRY_RUN:
+    print('*** Внимание! Режим симуляции! ***', file=stderr)
 
 
 def print_exception():

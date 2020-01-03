@@ -154,6 +154,8 @@ class Environment():
         FileTypes.RAW_IMAGE:'known-raw-image-types',
         FileTypes.VIDEO:'known-video-types'}
 
+    OPT_SEARCH_FILE_TYPES = 'search-file-types'
+
     SEC_TEMPLATES = 'templates'
     DEFAULT_TEMPLATE_NAME = '*'
 
@@ -196,6 +198,10 @@ class Environment():
 
         # поддерживаемые типы файлов (по расширениям)
         self.knownFileTypes = FileTypes()
+
+        # искать файлы указанных типов
+        # (во множестве д.б. значения FileTypes.IMAGE, FileTypes.RAW_IMAGE, FileTypes.VIDEO)
+        self.searchFileTypes = {FileTypes.IMAGE, FileTypes.RAW_IMAGE, FileTypes.VIDEO}
 
         # что делать с файлами, которые уже есть в каталоге-приемнике
         self.ifFileExists = self.FEXIST_RENAME
@@ -402,6 +408,21 @@ class Environment():
 
             self.knownFileTypes.add_extensions(ftype, exts)
 
+        #
+        # search-file-types
+        #
+        sftypes = self.cfg.get(self.SEC_OPTIONS, self.OPT_SEARCH_FILE_TYPES,
+            fallback=' '.join(FileTypes.LONGSTR.values())).split(None)
+        self.searchFileTypes.clear()
+
+        for sftype in sftypes:
+            sftype = sftype.lower()
+
+            if sftype not in FileTypes.STR_TO_TYPE:
+                raise self.Error(self.E_BADVAL2 % (self.OPT_IF_EXISTS, self.SEC_OPTIONS, self.configPath))
+
+            self.searchFileTypes.add(FileTypes.STR_TO_TYPE[sftype])
+
     def extensions_from_str(self, s):
         """Преобразование строки вида '.ext .ext' в set, с проверкой
         правильности.
@@ -550,6 +571,10 @@ class Environment():
                          self.OPT_KNOWN_FILE_TYPES[ftype],
                          self.extensions_to_str(self.knownFileTypes.knownExtensions[ftype]))
 
+        self.cfg.set(self.SEC_OPTIONS,
+                     self.OPT_SEARCH_FILE_TYPES,
+                     ' '.join(map(lambda t: FileTypes.LONGSTR[t], self.searchFileTypes)))
+
     def save(self):
         """Сохранение настроек.
         В случае ошибки генерирует исключение."""
@@ -633,6 +658,7 @@ class Environment():
   destinationDirs = %s
   ifFileExists = %s
   knownFileTypes:%s
+  searchFileTypes:(%s)
   aliases = %s
   templates = %s)''' % (self.__class__.__name__,
     self.configPath,
@@ -644,6 +670,7 @@ class Environment():
     str(self.destinationDirs),
     self.FEXISTS_OPTIONS_STR[self.ifFileExists],
     self.knownFileTypes,
+    ', '.join(map(lambda sft: FileTypes.LONGSTR[sft], self.searchFileTypes)),
     self.aliases,
     self.templates)
 
