@@ -63,7 +63,6 @@ class MainWnd():
     # элементы cboxFOp
     CBFOP_COPY, CBFOP_MOVE = range(2)
 
-    JOB_PROGRESS_SKIP = 1000
     JOB_MIN_SCROLLABLE_MSGS = 15
 
     class FileInfo():
@@ -267,7 +266,10 @@ class MainWnd():
 
         self.jobCtxSkippedFiles = 0
         self.jobCtxFileIndex = 0.0
-        self.jobCtxProgressSkip = self.JOB_PROGRESS_SKIP
+
+        self.jobCtxProgressSkipInit = 1000
+        self.jobCtxProgressSkip = self.jobCtxProgressSkipInit
+
         self.jobCtxErrors = 0
         self.jobCtxWarnings = 0
 
@@ -965,11 +967,16 @@ class MainWnd():
     def job_skip_progress(self):
         flush_gtk_events()
 
-        if self.jobCtxProgressSkip > 0:
+        # при небольшом количестве файлов
+        # self.jobCtxProgressSkip == -1, и self.jobCtxProgressSkipInit игнорируем...
+        if self.jobCtxProgressSkip < 0:
+            # ...а прогрессбар обновляем после каждой операции
+            return True
+        elif self.jobCtxProgressSkip > 0:
             self.jobCtxProgressSkip -= 1
             return False
         else:
-            self.jobCtxProgressSkip = self.JOB_PROGRESS_SKIP
+            self.jobCtxProgressSkip = self.jobCtxProgressSkipInit
             return True
 
     def job_begin(self, title, endpage, cancelpage):
@@ -990,7 +997,20 @@ class MainWnd():
 
         self.jobCtxSkippedFiles = 0
         self.jobCtxFileIndex = 0.0
-        self.jobCtxProgressSkip = self.JOB_PROGRESS_SKIP
+
+        # счётчик, при обнулении которого обновляется прогрессбар
+        # задержка нужна, чтобы реже дёргать GTK
+        if self.filetree.filesTotal >= 500:
+            self.jobCtxProgressSkipInit = self.filetree.filesTotal // 100
+            if self.jobCtxProgressSkipInit < 1:
+                self.jobCtxProgressSkipInit = 1
+
+            self.jobCtxProgressSkip = self.jobCtxProgressSkipInit
+        else:
+            # при кол-ве файлов < 500 прогрессбар обновляем после каждой файловой операции
+            # дабы UI не выглядел "зависшим"
+            self.jobCtxProgressSkip = -1
+
         self.jobCtxErrors = 0
         self.jobCtxWarnings = 0
 
@@ -1143,6 +1163,7 @@ class MainWnd():
 
                         if self.job_skip_progress():
                             # проверяем, не нажата ли кнопка "прервать"
+                            # и не пора ли обновлять прогрессбар
                             if not self.job_progress('', '', self.jobCtxFileIndex / self.filetree.filesTotal):
                                 raise JobCancelled
 
