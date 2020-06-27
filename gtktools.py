@@ -145,13 +145,15 @@ def create_aligned_label(title, halign=0.0, valign=0.0):
     return label
 
 
-def set_widget_style(widget, css):
-    """Задание стиля для виджета widget в формате CSS"""
+def set_widget_style(css, *widgets):
+    """Задание стиля для виджетов widgets в формате CSS"""
 
     dbsp = Gtk.CssProvider()
     dbsp.load_from_data(css) # убейте гномосексуалистов кто-нибудь!
-    dbsc = widget.get_style_context()
-    dbsc.add_provider(dbsp, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+    for widget in widgets:
+        dbsc = widget.get_style_context()
+        dbsc.add_provider(dbsp, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
 
 def msg_dialog(parent, title, msg, msgtype=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.OK, widgets=None):

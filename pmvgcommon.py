@@ -19,7 +19,7 @@
 
 
 TITLE = 'PhotoMVG'
-VERSION = '2.11'
+VERSION = '2.12'
 TITLE_VERSION = '%s v%s' % (TITLE, VERSION)
 URL = 'http://github.com/mc6312/photomvg'
 COPYRIGHT = '(c) 2019-2020 MC-6312'

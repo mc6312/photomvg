@@ -218,6 +218,8 @@ class MainWnd():
 
         self.txtNewFileNames = uibldr.get_object('txtNewFileNames')
 
+        self.btnExecFileOps = uibldr.get_object('btnExecFileOps')
+
         # костыль для обработки DnD, см. filetree_drag_data_received(), filetree_drag_end()
         self.filetreedroprow = None
 
@@ -282,6 +284,8 @@ class MainWnd():
         self.errorlist = TreeViewShell(uibldr.get_object('errorlistview'))
         self.errorlistswnd = uibldr.get_object('errorlistswnd')
 
+        self.btnFinish = uibldr.get_object('btnFinish')
+
         #
         # о программе...
         #
@@ -306,6 +310,10 @@ class MainWnd():
         #
         self.pages.set_current_page(self.PAGE_START)
         self.setup_sensitive_widgets(self.PAGE_START)
+
+        # некоторый костылинг отображения кнопок
+        set_widget_style(b'* {padding:10pt; font-size:120%; font-weight:bold}',
+            self.btnScanSrcDirs, self.btnFinish, self.btnExecFileOps)
 
         uibldr.connect_signals(self)
 
@@ -1059,8 +1067,12 @@ class MainWnd():
     def fileops_update_mode_settings(self):
         if self.env.modeMoveFiles:
             self.fileopModeTitle = 'Перемещение'
+            bt = 'Переместить'
         else:
             self.fileopModeTitle = 'Копирование'
+            bt = 'Копировать'
+
+        self.btnExecFileOps.set_label(bt)
 
     def fileops_mode_changed(self, cbox):
         ix = cbox.get_active()
