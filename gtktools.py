@@ -5,7 +5,7 @@
 
     Набор обвязок и костылей к GTK, общий для типовых гуёв.
 
-    Copyright 2018 mc6312
+    Copyright 2018-2020 MC-6312 (http://github.com/mc6312)
 
     This module is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -36,6 +36,9 @@ from sys import stderr, argv
 import os.path
 
 
+REVISION = 20200801
+
+
 def get_widget_base_unit():
     """Возвращает базовое значение, которое можно использовать для расчета
     отступов между виджетами и т.п., дабы несчастного пользователя
@@ -52,6 +55,7 @@ WIDGET_BASE_UNIT = get_widget_base_unit()
 
 # обычный интервал между виджетами (напр. внутри Gtk.Box)
 WIDGET_SPACING = WIDGET_BASE_UNIT // 2
+# меньше делать будет бессмысленно
 if WIDGET_SPACING < 4:
     WIDGET_SPACING = 4
 
@@ -107,6 +111,14 @@ def set_widgets_sensitive(widgets, bsensitive):
         widget.set_sensitive(bsensitive)
 
 
+def set_widgets_visible(widgets, bvisible):
+    """Устанавливает значения свойства "visible" равным значению
+    bvisible для виджетов из списка widgets."""
+
+    for widget in widgets:
+        widget.set_visible(bvisible)
+
+
 def get_child_with_class(container, wantclass):
     """Ищет первый попавшийся виджет класса wantclass
     в виджете-контейнере container.
@@ -139,9 +151,9 @@ def get_child_with_class(container, wantclass):
 
 
 def create_aligned_label(title, halign=0.0, valign=0.0):
-    label = Gtk.Label(title)
-    label.set_alignment(halign, valign)
-    #label.set_justify(Gtk.Justification.LEFT)
+    label = Gtk.Label.new(title)
+    label.set_xalign(halign)
+    label.set_yalign(valign)
     return label
 
 
@@ -156,11 +168,48 @@ def set_widget_style(css, *widgets):
         dbsc.add_provider(dbsp, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
 
-def msg_dialog(parent, title, msg, msgtype=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.OK, widgets=None):
-    dlg = Gtk.MessageDialog(parent, 0, msgtype, buttons, msg,
-        flags=Gtk.DialogFlags.MODAL|Gtk.DialogFlags.DESTROY_WITH_PARENT)
+def msg_dialog(parentw, title, msg, msgtype=Gtk.MessageType.ERROR,
+               buttons=Gtk.ButtonsType.OK, widgets=None,
+               destructive_response=None,
+               suggested_response=None,
+               default_response=None):
+    """Стандартное диалоговое окно с сообщением.
+
+    Параметры:
+        parentw - None или экземпляр Gtk.Window (окно, относительно
+                  которого диалог д.б. модальным);
+        title   - строка - заголовок;
+        msg     - строка - текст сообщения (может содержать Pango Markup);
+        msgtype - Gtk.MessageType.*;
+        buttons - Gtk.ButtonsType.*;
+        widgets - None или список экземпляров Gtk.Widget, добавляемых
+                  в диалоговое окно;
+        destructive_response    - None или Gtk.ResponseType.* для кнопки,
+                  соответствующей деструктивному действию (напр. "YES"
+                  для диалога "Удалить ...");
+        suggested_response      - None или Gtk.ResponseType.* для кнопки,
+                  соответствующей предпочитаемому действию;
+        default_response        - None или Gtk.ResponseType.* для кнопки,
+                  соответствующей действию по умолчанию (может совпадать
+                  с destructive_response или default_response).
+
+        Функция возвращает Gtk.ResponseType.*."""
+
+    dlg = Gtk.MessageDialog(parent=parentw, message_type=msgtype, buttons=buttons,
+        modal=True)
 
     dlg.set_title(title)
+    dlg.set_markup(msg)
+
+    if default_response is not None:
+        dlg.set_default_response(default_response)
+
+    def __btn_setup(response, cssclass):
+        if response is not None:
+            dlg.get_widget_for_response(response).get_style_context().add_class(cssclass)
+
+    __btn_setup(destructive_response, 'destructive-action')
+    __btn_setup(suggested_response, 'suggested-action')
 
     if widgets is not None:
         ca = dlg.get_message_area()
@@ -204,10 +253,11 @@ def create_file_filter(name, patterns):
 def get_gtk_builder(resldr, filename):
     """Возвращает экземпляр класса Gtk.Builder.
     resldr - экземпляр класса *ResourceLoader,
-    filename - имя файла .ui."""
+    filename - имя файла .ui.
+    Функция оставлена для совместимости, следует использовать
+    resldr.load_gtk_builder()."""
 
-    uistr = resldr.load(filename)
-    return Gtk.Builder.new_from_string(str(uistr, 'utf-8'), -1)
+    return resldr.load_gtk_builder(filename)
 
 
 def flush_gtk_events():
@@ -286,6 +336,13 @@ class FileResourceLoader():
         return Pixbuf.new_from_stream_at_scale(Gio.MemoryInputStream.new_from_bytes(b),
             width, height, True)
 
+    def load_pixbuf_icon_size(self, filename, size, fallback=None):
+        """Делает то же, что load_pixbuf, но size - константа Gtk.IconSize.*"""
+
+        size = Gtk.IconSize.lookup(size)[1]
+
+        return self.load_pixbuf(filename, size, size, fallback)
+
     def load_pixbuf(self, filename, width, height, fallback=None):
         """Загружает файл в память и возвращает экземпляр Gdk.Pixbuf.
 
@@ -306,10 +363,13 @@ class FileResourceLoader():
                 print('Loading fallback image "%s"' % fallback, file=stderr)
                 return Gtk.IconTheme.get_default().load_icon(fallback, height, Gtk.IconLookupFlags.FORCE_SIZE)
 
-    def load_pixbuf_icon_size(self, filename, size, fallback=None):
-        size = Gtk.IconSize.lookup(size)[1]
+    def load_gtk_builder(self, filename):
+        """Загружает в память и возвращает экземпляр класса Gtk.Builder.
+        filename - имя файла .ui.
+        При отсутствии файла и прочих ошибках генерируются исключения."""
 
-        return self.load_pixbuf(filename, size, size, fallback)
+        uistr = self.load(filename)
+        return Gtk.Builder.new_from_string(str(uistr, 'utf-8'), -1)
 
 
 class ZipFileResourceLoader(FileResourceLoader):
@@ -411,11 +471,23 @@ class TreeViewShell():
         self.view.set_model(self.store)
 
 
-if __name__ == '__main__':
-    print('[test of %s]' % __file__)
-
+def __test_rl():
     rl = get_resource_loader()
 
     b = rl.load('btfm-ui.xml')
     s = str(b, 'utf-8')
     print(s)
+
+
+def __test_msgdlg():
+    print(msg_dialog(None, 'Message dialog test', 'Delete anything?', buttons=Gtk.ButtonsType.YES_NO,
+        destructive_response=Gtk.ResponseType.YES,
+        suggested_response=Gtk.ResponseType.NO))
+
+
+if __name__ == '__main__':
+    print('[test of %s]' % __file__)
+
+    #__test_rl()
+    __test_msgdlg()
+
