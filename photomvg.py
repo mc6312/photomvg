@@ -158,8 +158,12 @@ class MainWnd():
         self.iconJobWarning = load_system_icon('dialog-warning', sizeIcon)
 
         #
-        self.pages = uibldr.get_object('pages')
-        self.pages.set_show_tabs(False) # в .ui указано True для упрощения правки в Glade
+        self.notebooks = []
+
+        for nbname in ('pages', 'toolbarPages', 'buttonPages'):
+            nbook = uibldr.get_object(nbname)
+            nbook.set_show_tabs(False) # в .ui указано True для упрощения правки в Glade
+            self.notebooks.append(nbook)
 
         #
         # PAGE_SRCDIRS, список каталогов-источников
@@ -308,20 +312,25 @@ class MainWnd():
         self.dlgSettings = SettingsDialog(self.wndMain, self.env)
 
         #
-        self.pages.set_current_page(self.PAGE_START)
-        self.setup_sensitive_widgets(self.PAGE_START)
+        self.set_ui_page(self.PAGE_START)
 
         # некоторый костылинг отображения кнопок
-        set_widget_style(b'* {padding:10pt; font-size:120%; font-weight:bold}',
+        #b'* {padding:10pt; font-size:120%; font-weight:bold}'
+        set_widget_style(b'* {font-weight:bold}',
             self.btnScanSrcDirs, self.btnFinish, self.btnExecFileOps)
 
         uibldr.connect_signals(self)
 
         self.wndMain.show_all()
 
-    def setup_sensitive_widgets(self, pagenum):
-        # пока - так
-        set_widgets_sensitive(self.page0widgets, pagenum == self.PAGE_START)
+    def set_ui_page(self, npage):
+        for nbook in self.notebooks:
+            nbook.set_current_page(npage)
+
+        self.setup_sensitive_widgets(npage)
+
+    def setup_sensitive_widgets(self, npage):
+        set_widgets_sensitive(self.page0widgets, npage == self.PAGE_START)
 
     def pages_switch_page(self, nb, page, pnum):
         self.setup_sensitive_widgets(pnum)
@@ -997,7 +1006,8 @@ class MainWnd():
         self.txtProgressOperation.set_text(title)
         self.pbarProgress.set_fraction(0.0)
 
-        self.pages.set_current_page(self.PAGE_PROGRESS)
+        self.set_ui_page(self.PAGE_PROGRESS)
+
         self.jobEndPage = endpage
         self.jobCancelledPage = cancelpage
         self.jobRunning = True
@@ -1057,7 +1067,7 @@ class MainWnd():
 
             self.errorlistswnd.set_visible(elv)
 
-        self.pages.set_current_page(self.jobEndPage)
+        self.set_ui_page(self.jobEndPage)
 
     def job_stop(self, widget):
         """Нажата кнопка "Прервать"."""
@@ -1100,7 +1110,7 @@ class MainWnd():
             ругаемся и возвращаемся на страницу задания."""
 
             msg_dialog(self.wndMain, sTitle, msg)
-            self.pages.set_current_page(self.PAGE_DESTFNAMES)
+            self.set_ui_page(self.PAGE_DESTFNAMES)
 
         #
         # подготовка и проверка перед основной работой
@@ -1284,7 +1294,7 @@ class MainWnd():
         self.filetree_refresh()
 
     def btn_restart_clicked(self, wgt):
-        self.pages.set_current_page(self.PAGE_START)
+        self.set_ui_page(self.PAGE_START)
 
     def app_show_about_box(self, wgt):
         self.dlgAbout.show()
